@@ -1,0 +1,26 @@
+# Ignore output folder
+/parse_outs
+/data
+/tools
+
+# Ignore job output and error files
+*.[oe]*
+__pycache__/
+*.pyc
+
+# LaTeX build artifacts
+*.pdf
+*.tex
+*.png
+*.txt
+*.csv
+*.pptx
+*.aux
+*.log
+*.out
+*.toc
+*.nav
+*.snm
+*.synctex.gz
+*.fls
+*.fdb_latexmk
