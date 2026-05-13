@@ -1460,11 +1460,13 @@ run_enrichment_heatmap <- function(cluster_enrich, selected_mp_genes, refs, elem
     NULL
   }
 
-  pheatmap::pheatmap(
+  # EXPLICIT GRID DRAW FOR MULTI-PAGE PDF RELIABILITY
+  grid::grid.newpage()
+  p_obj <- pheatmap::pheatmap(
     mat,
     display_numbers = text_mat,
     number_color = "black",
-    fontsize_number = fontsize_row * 0.8,
+    fontsize_number = fontsize_row * 0.95,
     labels_col = col_labels,
     color = cols,
     breaks = breaks,
@@ -1477,11 +1479,14 @@ run_enrichment_heatmap <- function(cluster_enrich, selected_mp_genes, refs, elem
     border_color = NA,
     show_colnames = TRUE,
     angle_col = 45,
-    fontsize = fontsize,
-    fontsize_row = fontsize_row,
-    fontsize_col = fontsize_col,
-    main = paste0(element, " Enrichment (-log10 padj)")
+    fontsize = 24,
+    fontsize_row = 10,
+    fontsize_col = 11,
+    main = paste0(element, " Enrichment (-log10 padj)"),
+    silent = TRUE
   )
+  grid::grid.draw(p_obj$gtable)
+  message("  -> Successfully added ", element, " enrichment page to PDF (", length(terms_use), " terms).")
   TRUE
 }
 
@@ -1603,7 +1608,13 @@ run_excel <- function() {
     mat <- matrix(NA_character_, nrow = n_rows, ncol = n_mp)
     for (i in seq_along(mp_names_vec)) {
       mp <- mp_names_vec[i]
-      mat[1, i] <- mp
+      n_prog <- retained_df$numberPrograms[retained_df$MP == mp]
+      if (length(n_prog) > 0 && !is.na(n_prog[1])) {
+        prog_label <- ifelse(n_prog[1] == 1, "1 programme", paste0(n_prog[1], " programmes"))
+        mat[1, i] <- paste0(mp, " (", prog_label, ")")
+      } else {
+        mat[1, i] <- mp
+      }
       mat[2, i] <- "" 
       genes <- mp_genes[[mp]]
       if (length(genes) > 0) {
