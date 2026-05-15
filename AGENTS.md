@@ -8,11 +8,15 @@ Parse Biosciences single-cell RNA-seq QC and analysis pipeline for OAC (Oesophag
 data/                — Raw FASTQ deliveries and filtered count matrices (symlinked)
 tools/               — External pipelines and utilities (Parse splitpipe, velocity, trailmaker)
 analysis/            — Downstream analysis R scripts organized by topic
-  cell_states/       — State assignment, abundance, pseudotime
+  common/            — Shared config, constants, helpers, logging
+  input_preparation/ — Input conversion utilities for extra datasets
+  cell_states/       — State assignment, abundance, activity reports
   cnv/               — InferCNA copy number analysis
   metaprograms/      — GeneNMF, enrichment, MP correlation, high-res trends
+  methodology/       — Script-by-script methodology files
   plotting/          — QC heatmaps, plotting utilities
   summary/           — Cross-sample summary statistics
+  trajectory/        — Pseudotime and RNA velocity workflows
 parse_outs/          — All pipeline outputs
 temp/                — PBS stdout/stderr logs
 AGENTS.md            — Workspace rules and execution guidance
@@ -40,11 +44,15 @@ AGENTS.md            — Workspace rules and execution guidance
 | Step | Shell Script | R Script | Scope | Conda Env |
 |------|-------------|----------|-------|-----------| 
 | 1 | `Auto_parse_QC_Pipeline.sh` | `Auto_parse_QC_Pipeline.R` | All samples | dmtcp |
-| 2 | via metaprogram submission scripts | `analysis/metaprograms/Auto_parse_geneNMF.R` | All malignant epi | gnmf |
-| 3 | via metaprogram submission scripts | `analysis/metaprograms/Auto_parse_find_optimal_nmf.R` | All | dmtcp |
-| 4 | via metaprogram submission scripts | `analysis/metaprograms/Auto_parse_enrichment_annotation.R` | All | dmtcp |
-| 5 | `analysis/cnv/Auto_parse_infercna.sh` | `analysis/cnv/Auto_parse_infercna.R` | All | dmtcp |
-| 6 | `analysis/cell_states/Auto_parse_mp_abundance_activity_dual.sh` | `analysis/cell_states/Auto_parse_mp_abundance_activity_dual.R` | All | dmtcp |
+| 2 | `Auto_parse_geneNMF.sh` | `analysis/metaprograms/parse_metaprogram_geneNMF_discovery.R` | Six Parse samples | gnmf |
+| 3 | `Auto_parse_find_optimal_nmf.sh` | `analysis/metaprograms/parse_metaprogram_select_optimal_nMP.R` | Parse MP sweep | gnmf |
+| 4 | `Auto_parse_geneNMF.sh` rerun | `analysis/metaprograms/parse_metaprogram_geneNMF_discovery.R` | Selected nMP UCell scoring | gnmf |
+| 5 | `Auto_parse_enrichment_annotation.sh` | `analysis/metaprograms/parse_metaprogram_enrichment_annotation.R` | Selected Parse MPs | dmtcp |
+| 6 | `Auto_run_mp_correlation.sh` | `analysis/metaprograms/parse_metaprogram_internal_correlation.R` | Selected Parse MPs | dmtcp |
+| 7 | `Auto_parse_mp_abundance_activity_dual.sh` | `analysis/cell_states/parse_mp_state_abundance_activity_approachB_noreg.R` | All 9 samples | dmtcp |
+| 8 | `Auto_parse_mp_correlation_with_pancancer.sh` | `analysis/metaprograms/parse_metaprogram_external_reference_correlation.R` | Parse vs scATLAS/PDO | dmtcp |
+| 9 | `Auto_parse_infercna.sh` | `analysis/cnv/parse_infercna_carroll_reference.R` | All 9 samples | dmtcp |
+| 10 | `Auto_parse_pseudotime_samples.sh` | `analysis/trajectory/parse_pseudotime_sample_trajectory.R` then plotting/distance scripts | Six Parse samples | dmtcp |
 
 ## Build / Run / Test Commands
 
@@ -55,33 +63,36 @@ There is no build system, linter, or test suite. All execution is via PBS `qsub`
 qsub Auto_parse_QC_Pipeline.sh
 
 # GeneNMF metaprogram analysis
-qsub analysis/metaprograms/Auto_parse_geneNMF.sh
+qsub Auto_parse_geneNMF.sh
 
 # Optimal nMP selection
-qsub analysis/metaprograms/Auto_parse_find_optimal_nmf.sh
+qsub Auto_parse_find_optimal_nmf.sh
+
+# Rerun GeneNMF after optimal nMP selection to score selected MPs
+qsub Auto_parse_geneNMF.sh
 
 # Enrichment annotation
-qsub analysis/metaprograms/Auto_parse_enrichment_annotation.sh
+qsub Auto_parse_enrichment_annotation.sh
 
 # MP correlation
-qsub analysis/metaprograms/Auto_run_mp_correlation.sh
+qsub Auto_run_mp_correlation.sh
 
 # Cross-data MP correlation (external datasets)
-qsub analysis/metaprograms/Auto_parse_mp_correlation_with_pancancer.sh
+qsub Auto_parse_mp_correlation_with_pancancer.sh
 
 # InferCNA
-qsub analysis/cnv/Auto_parse_infercna.sh
+qsub Auto_parse_infercna.sh
 
-# MP abundance/activity dual report
-qsub analysis/cell_states/Auto_parse_mp_abundance_activity_dual.sh
+# Preferred Approach B/noreg MP state abundance/activity report
+qsub Auto_parse_mp_abundance_activity_dual.sh
 
 # Submit full metaprogram workflow (geneNMF → optimal → enrichment → correlation)
-bash analysis/metaprograms/Auto_parse_submit_metaprogram_workflow.sh
+bash Auto_parse_submit_metaprogram_workflow.sh
 
 # Run R interactively
 eval "$(~/miniforge3/bin/conda shell.bash hook)"
 source activate /rds/general/user/sg3723/home/anaconda3/envs/dmtcp
-Rscript analysis/cell_states/Auto_parse_mp_abundance_activity_dual.R
+Rscript analysis/cell_states/parse_mp_state_abundance_activity_approachB_noreg.R
 
 # For GeneNMF / UCell scripts, use the gnmf environment
 source activate /rds/general/user/sg3723/home/anaconda3/envs/gnmf
@@ -96,7 +107,7 @@ These rules are **mandatory** for any agent operating in this repo:
 3. **Interactive first**: Tasks under 8 cores / 64 GB → write only the `.R` script, no `.sh` wrapper. User runs interactively.
 4. **PBS required**: Heavy tasks → must create PBS `.sh` script with `#PBS` resource headers.
 5. **Live Logging**: Always use live streaming log file mode by adding `#PBS -koed` to the submission script.
-6. **File naming**: New persistent files MUST be prefixed with `Auto_` (e.g., `Auto_analysis.R`).
+6. **File naming**: Active analysis scripts should use informative names without the old `Auto_` script prefix. Use `legacy_` for comparison-only scripts and `delete_` for scripts the user should manually remove. Existing output filenames may keep `Auto_parse_*` for downstream compatibility.
 7. **Modifying existing files**: New code MUST be wrapped in 20-hash comment blocks:
    ```r
    ####################
@@ -106,6 +117,11 @@ These rules are **mandatory** for any agent operating in this repo:
 8. **No deleting/modifying** existing lines outside 20-hash blocks without permission.
 9. **Test scripts**: Name `delete_<desc>.R` and delete immediately after use.
 10. **Max concurrent PBS jobs**: 46 (throttled via `while [[ $(qstat | grep sg3723 | wc -l) -gt 46 ]]`).
+11. **Script headers**: Every persistent script must start with a 20-hash header documenting description, exact inputs, exact outputs, cache/replot behavior for expensive workflows, methodology file path, and downstream status.
+12. **Methodology docs**: Every active or legacy script must have a methodology file under `analysis/methodology/<matching_subfolder>/`. Update `analysis/script_inventory_and_dependency_map.md` when scripts move, change dependencies, or become legacy/delete candidates.
+13. **Output tiers**: New or substantially revised workflows should organize outputs into `intermediate/`, `tables/`, `figures/`, `logs/`, and `reports/` within their output directory. Existing legacy output locations can stay stable but must be classified in the header/methodology.
+14. **Run summaries**: Long-running R scripts should use `analysis/common/parse_pipeline_logging.R` to write `parse_outs/logs/run_summaries/<script>_<timestamp>.txt` with start/end time, inputs, outputs, parameters, cache reuse, and session info.
+15. **Plot readability**: Slide-facing plots must use readable font sizes, legend text, row/column labels, and point sizes. Prefer wide PDFs/PNGs and avoid tiny labels that cannot be read in PowerPoint.
 
 ### PBS Job Template
 ```bash
@@ -125,6 +141,24 @@ Rscript <script>.R
 echo $(date +%T)
 ```
 
+## Shared Configuration and Script Map
+
+| File | Purpose |
+| :--- | :--- |
+| `analysis/script_inventory_and_dependency_map.md` | Required analysis-folder map with run order, terminal figures, legacy/delete candidates, output tiers, and stale pointer checks |
+| `analysis/common/parse_pipeline_config.R` | R project paths, sample/state constants, thresholds, reference paths, output tiers, plot defaults |
+| `analysis/common/parse_pipeline_helpers.R` | Shared R helpers for package loading, count extraction, chunking, MP gene tables, z-normalization, and slide themes |
+| `analysis/common/parse_pipeline_logging.R` | R run-summary logging |
+| `analysis/common/parse_pipeline_config.py` | Python path/sample constants for velocity workflows |
+
+Preferred current state-definition constants live in `parse_state_definition`:
+
+- method: `Approach B`
+- normalization: `noreg`
+- unresolved threshold: `0.5`
+- hybrid gap: `0.3`
+- preferred assignment object: `parse_outs/cell_states/Auto_parse_PDOpipeline_topmp_assignments.rds`
+
 ## Code Style Guidelines
 
 ### R Scripts
@@ -142,7 +176,7 @@ echo $(date +%T)
 
 **Tidyverse style**: Pipe-heavy with `%>%` and `|>`. `dplyr` verbs, `tidyr::pivot_longer/wider`.
 
-**Plotting**: `ggplot2` with `theme_minimal()` or `theme_classic()`. Plots saved via `ggsave()` or `pdf()`/`png()` + `dev.off()`. Composite layouts with `patchwork`.
+**Plotting**: `ggplot2` with `theme_minimal()` or `theme_classic()`. Plots saved via `ggsave()` or `pdf()`/`png()` + `dev.off()`. Composite layouts with `patchwork`. Slide-facing outputs must use legible text/legend/point sizes and dimensions appropriate for PowerPoint; use `analysis/common/parse_pipeline_config.R` plotting defaults where possible.
 
 **Output format**: `.rds` files for data, `.png` / `.pdf` for plots, `.csv` for summary tables.
 
@@ -192,42 +226,53 @@ All paths are relative to `parse_outs/` unless absolute paths are specified.
 ### `analysis/metaprograms/` — Metaprogram Analysis
 | File | Purpose |
 | :--- | :--- |
-| `Auto_parse_geneNMF.R` | Run GeneNMF on merged malignant epithelial cells |
-| `Auto_parse_find_optimal_nmf.R` | Determine optimal nMP using silhouette + WSS |
-| `Auto_parse_enrichment_annotation.R` | Multi-database enrichment annotation of Parse MPs |
-| `Auto_parse_mp_correlation.R` | Within-cohort MP Spearman correlation |
-| `Auto_parse_mp_correlation_external.R` | Cross-dataset MP correlation (scATLAS, PDO) |
-| `Auto_parse_highres_mp_trend_filter.R` | High-resolution temporal MP trend filtering |
+| `parse_metaprogram_geneNMF_discovery.R` | Run GeneNMF sweep and selected-nMP UCell scoring for Parse samples |
+| `parse_metaprogram_select_optimal_nMP.R` | Determine optimal nMP using silhouette + WSS |
+| `parse_metaprogram_enrichment_annotation.R` | Multi-database enrichment annotation of selected Parse MPs |
+| `parse_metaprogram_internal_correlation.R` | Within-cohort MP Spearman/Jaccard diagnostics |
+| `parse_metaprogram_external_reference_correlation.R` | Cross-dataset MP correlation and Jaccard overlap against scATLAS/PDO |
+| `parse_highres_mp_strict_mean_median_trend_filter.R` | Active high-resolution MP strict mean/median trend filtering |
+| `legacy_parse_highres_mp_t2t4_comparison_filter.R` | Legacy T2/T4-high high-resolution MP comparison; not downstream |
 
 ### `analysis/cell_states/` — Cell State Analysis
 | File | Purpose |
 | :--- | :--- |
-| `Auto_parse_mp_abundance_activity_dual.R` | MP abundance and activity dual reporting (scATLAS + PDO + Parse MPs) |
+| `parse_mp_state_abundance_activity_approachB_noreg.R` | Preferred Approach B/noreg MP state assignment, abundance, and activity reporting |
 
 ### `analysis/trajectory/` — Trajectory and Pseudotime Analysis
 | File | Purpose |
 | :--- | :--- |
-| `Auto_parse_pseudotime_samples.R` | Per-sample Monocle3 pseudotime |
-| `Auto_parse_pseudotime_linear_plot.R` | Linear pseudotime visualisation |
-| `Auto_parse_pseudotime_sample_distance_matrix.R` | Pseudotime-based state distance matrix |
-| `Auto_prepare_velocity_inputs.py` | Extract barcodes and coordinates for velocity |
-| `Auto_velocyto_parse_run.py` | Run velocyto on Parse BAMs |
-| `Auto_scvelo_visualise.py` | scVelo analysis and visualization |
+| `parse_pseudotime_helpers.R` | Shared helpers for sample-level Monocle3 workflows |
+| `parse_pseudotime_sample_trajectory.R` | Per-sample Monocle3 pseudotime rooted on T0 |
+| `parse_pseudotime_linear_sample_report.R` | Linear pseudotime visualization/report |
+| `parse_pseudotime_sample_distance_maps.R` | Pseudotime/graph/UMAP sample distance matrices and plots |
+| `parse_velocity_prepare_inputs.py` | Extract barcodes, metadata, and references for velocity; downloads RepeatMasker if absent |
+| `parse_velocity_run_velocyto_parse_bam.py` | Run velocyto on Parse BAMs |
+| `parse_velocity_scvelo_visualise.py` | scVelo analysis and visualization |
+| `parse_velocity_submit_pipeline.sh` | Submit full velocity workflow with PBS dependencies |
+| `delete_Auto_pseudotime_linear_plot_legacy_wrapper.R` | Delete candidate compatibility wrapper |
+| `delete_Auto_pseudotime_state_distance_matrix_legacy_wrapper.R` | Delete candidate compatibility wrapper |
+| `delete_parse_velocity_submit_pipeline_run2_duplicate.sh` | Delete candidate duplicate velocity submitter |
 
 ### `analysis/cnv/` — Copy Number Variation
 | File | Purpose |
 | :--- | :--- |
-| `Auto_parse_infercna.R` | InferCNA on Parse epithelial cells |
+| `parse_infercna_carroll_reference.R` | InferCNA on Parse/PDO/SUR1090 epithelial cells with Carroll_2023 reference |
 
 ### `analysis/plotting/` — QC and Plotting
 | File | Purpose |
 | :--- | :--- |
-| `Auto_parse_qc_heatmap.R` | QC metric heatmap |
+| `parse_qc_marker_heatmap.R` | Raw/final QC marker heatmaps |
 
 ### `analysis/summary/` — Summary Statistics
 | File | Purpose |
 | :--- | :--- |
-| `Auto_parse_summary.R` | Cross-sample summary statistics |
+| `parse_filtering_summary_plots.R` | Cross-sample QC filtering summary plots |
+
+### `analysis/input_preparation/` — Input Preparation
+| File | Purpose |
+| :--- | :--- |
+| `parse_prepare_sur1090_count_matrices.R` | Convert SUR1090 treated/untreated CSV matrices into Parse-compatible DGE_filtered folders |
 
 ## External Data Dependencies
 
@@ -236,9 +281,13 @@ All paths are relative to `parse_outs/` unless absolute paths are specified.
 | scATLAS epithelial | `/rds/general/project/tumourheterogeneity1/ephemeral/scRef_Pipeline/ref_outs/EAC_Ref_epi.rds` | Reference epithelial Seurat for cross-data comparison |
 | scATLAS MPs | `/rds/general/project/tumourheterogeneity1/ephemeral/scRef_Pipeline/ref_outs/Metaprogrammes_Results/geneNMF_metaprograms_nMP_19.rds` | scATLAS metaprogram definitions |
 | scATLAS UCell scores | `/rds/general/project/tumourheterogeneity1/ephemeral/scRef_Pipeline/ref_outs/UCell_nMP19_filtered.rds` | Filtered UCell scores |
+| PDO-pipeline MPs | `/rds/general/project/tumourheterogeneity1/ephemeral/PDOs_Pipeline/PDOs_outs/Metaprogrammes_Results/geneNMF_metaprograms_nMP_13.rds` | PDO metaprogram definitions for Approach B/noreg state assignment |
+| Carroll CNV reference | `/rds/general/project/tumourheterogeneity1/ephemeral/scRef_Pipeline/ref_outs/Carroll_2023_reference.rds` | External InferCNA reference |
 | 3CA gene sets | `/rds/general/project/tumourheterogeneity1/live/ITH_sc/PDOs/Count_Matrix/New_NMFs.csv` | Pan-cancer 3CA metaprograms |
 | Cell cycle genes | `/rds/general/project/tumourheterogeneity1/live/EAC_Ref_all/Cell_Cycle_Genes.csv` | Cell cycle gene annotations |
 | Gene order | `/rds/general/project/spatialtranscriptomics/live/ITH_all/all_samples/hg38_gencode_v27.txt` | Gene position file for InferCNA |
+| Velocity GTF | `/rds/general/project/tumourheterogeneity1/live/ITH_sc/refdata-gex-GRCh38-2024-A/genes/genes.gtf.gz` | RNA velocity gene annotation source |
+| Velocity RepeatMasker | `https://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/rmsk.txt.gz` | Downloaded by `parse_velocity_prepare_inputs.py` if absent |
 
 ## Sample Information
 
@@ -253,9 +302,9 @@ source activate /rds/general/user/sg3723/home/anaconda3/envs/bidcell_temp
 ```
 
 Key scripts in `analysis/trajectory/`:
-- `Auto_prepare_velocity_inputs.py` — extract barcodes and coordinates from Seurat
-- `Auto_velocyto_parse_run.py` — run velocyto on Parse BAMs
-- `Auto_scvelo_visualise.py` — scVelo analysis and visualization
+- `parse_velocity_prepare_inputs.py` — extract barcodes and coordinates from Seurat
+- `parse_velocity_run_velocyto_parse_bam.py` — run velocyto on Parse BAMs
+- `parse_velocity_scvelo_visualise.py` — scVelo analysis and visualization
 
 ## Directory Migration Notes
 
@@ -274,6 +323,8 @@ mp.genes <- mp.genes[!names(mp.genes) %in% paste0("MP", bad_mps)]
 ```
 
 **Sample identity**: Use `orig.ident` from Seurat metadata.
+
+**Preferred cell-state definition**: PDO-pipeline metaprogram state assignment with **Approach B** and **noreg** adjusted scores. The canonical assignment is `parse_outs/cell_states/Auto_parse_PDOpipeline_topmp_assignments.rds`; the canonical adjusted score matrix is `parse_outs/cell_states/Auto_parse_PDOpipeline_mp_adj_noreg.rds`.
 
 **Environment usage**:
 - `gnmf` conda env: UCell scoring and GeneNMF scripts
@@ -295,9 +346,11 @@ Future agents must update this file when they:
 - Find a new analysis script and define its purpose.
 - Locate new input or output file paths.
 - Spot a recurring pattern or technical hurdle.
-- Create a new `Auto_` script.
+- Create or rename an analysis script.
+- Add or change a methodology file.
+- Change any script dependency, output tier, terminal/legacy status, or run order.
 
-Append new findings to the appropriate section. Don't rewrite existing documentation unless fixing an error.
+Also update `analysis/script_inventory_and_dependency_map.md` in the same change. Append new findings to the appropriate section. Don't rewrite existing documentation unless fixing an error.
 
 ####################
 ## Nature-Figure Publication Skill (Selective Application)

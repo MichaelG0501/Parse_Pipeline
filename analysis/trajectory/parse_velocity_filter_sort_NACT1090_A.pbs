@@ -1,0 +1,51 @@
+#!/bin/bash
+#PBS -l select=1:ncpus=8:mem=96gb
+#PBS -l walltime=24:00:00
+#PBS -q v1_medium24a
+#PBS -N Auto_fsort_A
+#PBS -koed
+#PBS -o /rds/general/ephemeral/project/spatialtranscriptomics/ephemeral/Parse_Pipeline/parse_outs/Auto_velocity/logs/Auto_filter_sort_A_run4.log
+#PBS -e /rds/general/ephemeral/project/spatialtranscriptomics/ephemeral/Parse_Pipeline/parse_outs/Auto_velocity/logs/Auto_filter_sort_A_run4.err
+
+####################
+# parse_velocity_filter_sort_NACT1090_A.pbs
+#
+# Description:
+#   Filters the NACT1090_A Trailmaker BAM to non-PDO barcodes and sorts/indexes
+#   the coordinate BAM used by velocyto.
+#
+# Methodology:
+#   analysis/methodology/trajectory/velocity_pipeline_methodology.md
+####################
+
+echo $(date +%T)
+module purge
+module load tools/dev
+eval "$(~/miniforge3/bin/conda shell.bash hook)"
+conda activate velocity
+
+WD=/rds/general/ephemeral/project/spatialtranscriptomics/ephemeral/Parse_Pipeline
+cd $WD
+mkdir -p parse_outs/Auto_velocity/coord parse_outs/Auto_velocity/tmp_sort
+
+BAM=parse_outs/Auto_velocity/tmp/NACT1090_A.bam
+BC=parse_outs/Auto_velocity/barcodes/NACT1090_A_nonPDO_barcodes.tsv
+OUT=parse_outs/Auto_velocity/coord/NACT1090_A.nonPDO.coord.bam
+
+samtools view -h "$BAM" | \
+awk -v bcfile="$BC" 'BEGIN { while ((getline line < bcfile) > 0) keep[line]=1 }
+  /^@/ { print; next }
+  {
+    cb=""; ps="";
+    for (i=12; i<=NF; i++) {
+      if ($i ~ /^CB:Z:/) cb=substr($i,6);
+      else if ($i ~ /^pS:Z:/) ps=substr($i,6);
+    }
+    if ((cb in keep) && ps != "PDO" && ps != "SUR1090") print;
+  }' | \
+samtools sort -@ 8 -m 7000M -T parse_outs/Auto_velocity/tmp_sort/NACT1090_A.nonPDO.coord -O BAM -o "$OUT" -
+
+samtools index -@ 8 "$OUT"
+samtools quickcheck -v "$OUT"
+samtools view -H "$OUT" | head -5
+echo $(date +%T)

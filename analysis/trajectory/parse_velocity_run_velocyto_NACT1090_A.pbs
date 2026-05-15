@@ -1,0 +1,40 @@
+#!/bin/bash
+#PBS -l select=1:ncpus=8:mem=96gb
+#PBS -l walltime=36:00:00
+#PBS -q v1_medium72a
+#PBS -N Auto_velocyto_A
+#PBS -koed
+#PBS -o /rds/general/ephemeral/project/spatialtranscriptomics/ephemeral/Parse_Pipeline/parse_outs/Auto_velocity/logs/Auto_velocyto_A_run4.log
+#PBS -e /rds/general/ephemeral/project/spatialtranscriptomics/ephemeral/Parse_Pipeline/parse_outs/Auto_velocity/logs/Auto_velocyto_A_run4.err
+
+####################
+# parse_velocity_run_velocyto_NACT1090_A.pbs
+#
+# Description:
+#   Runs velocyto on the filtered/sorted NACT1090_A Parse BAM.
+#
+# Methodology:
+#   analysis/methodology/trajectory/velocity_pipeline_methodology.md
+####################
+
+echo $(date +%T)
+module purge
+module load tools/dev
+eval "$(~/miniforge3/bin/conda shell.bash hook)"
+conda activate velocity
+
+WD=/rds/general/ephemeral/project/spatialtranscriptomics/ephemeral/Parse_Pipeline
+cd $WD
+
+python analysis/trajectory/parse_velocity_run_velocyto_parse_bam.py \
+  --bcfile parse_outs/Auto_velocity/barcodes/NACT1090_A_nonPDO_barcodes.tsv \
+  --outputfolder parse_outs/Auto_velocity/looms/A \
+  --sampleid NACT1090_A \
+  --mask parse_outs/Auto_velocity/ref/repeatmasker.GRCh38-1-1-3c.gtf \
+  --samtools-threads 8 \
+  --samtools-memory 7000 \
+  -vv \
+  parse_outs/Auto_velocity/coord/NACT1090_A.nonPDO.coord.bam \
+  parse_outs/Auto_velocity/ref/genes.GRCh38-1-1-3c.gtf
+
+echo $(date +%T)
