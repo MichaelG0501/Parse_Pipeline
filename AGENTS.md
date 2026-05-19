@@ -353,6 +353,28 @@ Future agents must update this file when they:
 Also update `analysis/script_inventory_and_dependency_map.md` in the same change. Append new findings to the appropriate section. Don't rewrite existing documentation unless fixing an error.
 
 ####################
+## 2026-05-15 Added Tumour Stiffness Gene Module Heatmap
+
+- Active terminal figure script: `analysis/cell_states/parse_tumour_stiffness_gene_module_heatmap.R`.
+- Methodology: `analysis/methodology/cell_states/tumour_stiffness_gene_module_heatmap_methodology.md`.
+- Input: `parse_outs/Auto_parse_merged.rds`.
+- Outputs: `parse_outs/cell_states/tumour_stiffness_gene_module/` with `intermediate/`, `tables/`, `figures/`, and `reports/` tiers.
+- Main terminal figure: `parse_outs/cell_states/tumour_stiffness_gene_module/figures/Auto_parse_tumour_stiffness_module_gene_heatmap.pdf`.
+- The heatmap uses sample columns, grouped gene/module rows, a vibrant blue-white-red color transition based on row z-score, horizontal and wrapped row titles for the gene groups, top-aligned columns with the cell-count barplot shifted directly adjacent to the columns, and raw mean log-normalized score labels scaled up to a highly legible 8pt size.
+####################
+
+####################
+## 2026-05-15 Added T2+T4 versus T0 DEG and Pathway Response Workflow
+
+- Active terminal response script: `analysis/cell_states/parse_t2t4_vs_t0_dge_pathway_response.R`.
+- Methodology: `analysis/methodology/cell_states/t2t4_vs_t0_dge_pathway_response_methodology.md`.
+- Inputs: `parse_outs/by_samples/<sample>/Auto_<sample>_final.rds`, MSigDB Hallmark gene sets via `msigdbr`, configured cell-cycle genes, and PDO-pipeline MP4/MP8 metaprogram genes.
+- Outputs: `parse_outs/t2t4_vs_t0_response/` with `intermediate/`, `tables/`, `figures/`, `logs/`, and `reports/` tiers.
+- Main terminal figures: T2+T4 vs T0 volcano plot, Hallmark FGSEA dot plot, top-DEG sample heatmap, and real-value sample pathway/metric heatmap.
+- The DEG contrast pools T2 and T4 cells against T0 and intentionally includes no batch covariate under the sequenced-together assumption.
+####################
+
+####################
 ## Nature-Figure Publication Skill (Selective Application)
 
 A `nature-figure` skill is installed at `/rds/general/user/sg3723/home/nature-skills/nature-figure/`. It enforces Nature-journal visual standards. **Agents must exercise judgment to apply this skill primarily to scripts producing final, sharable results.**

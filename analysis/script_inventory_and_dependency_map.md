@@ -81,3 +81,25 @@ New or substantially revised workflows should use this tiering inside their work
 - `reports/`: multi-panel PDFs, HTML reports, or slide-facing summaries
 
 Existing scripts may retain legacy output locations, but their headers and methodology files must classify which outputs act as intermediate caches versus terminal figures.
+
+####################
+## 2026-05-15 Tumour Stiffness Gene Module Heatmap Update
+
+- Added active terminal figure script `cell_states/parse_tumour_stiffness_gene_module_heatmap.R`.
+- Methodology: `analysis/methodology/cell_states/tumour_stiffness_gene_module_heatmap_methodology.md`.
+- Depends on `parse_outs/Auto_parse_merged.rds`.
+- Main outputs live under `parse_outs/cell_states/tumour_stiffness_gene_module/` with `intermediate/`, `tables/`, `figures/`, and `reports/` tiers.
+- Terminal figures: `figures/Auto_parse_tumour_stiffness_module_gene_heatmap.pdf` and `figures/Auto_parse_tumour_stiffness_module_gene_heatmap_no_pdo_sur1090.pdf`.
+- No active downstream consumers.
+####################
+
+####################
+## 2026-05-15 T2+T4 versus T0 DEG and Pathway Response Update
+
+- Added active terminal response script `cell_states/parse_t2t4_vs_t0_dge_pathway_response.R`.
+- Methodology: `analysis/methodology/cell_states/t2t4_vs_t0_dge_pathway_response_methodology.md`.
+- Depends on `parse_outs/by_samples/<sample>/Auto_<sample>_final.rds`, MSigDB Hallmark gene sets via `msigdbr`, the configured cell-cycle gene file, and the PDO-pipeline metaprogram reference for MP4/MP8 lineage metrics.
+- Main outputs live under `parse_outs/t2t4_vs_t0_response/` with `intermediate/`, `tables/`, `figures/`, `logs/`, and `reports/` tiers.
+- Terminal figures include the T2+T4 vs T0 volcano plot, Hallmark FGSEA dot plot, top-DEG sample heatmap, and real-value sample pathway/metric heatmap.
+- No active downstream consumers.
+####################

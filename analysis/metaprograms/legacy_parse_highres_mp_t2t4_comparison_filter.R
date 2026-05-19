@@ -204,6 +204,119 @@ make_display_labels <- function(trend_summary, nMP) {
   setNames(label_df$display_label, label_df$MP)
 }
 
+####################
+format_p_label <- function(x) {
+  ifelse(is.na(x), "NA", ifelse(x < 0.001, formatC(x, format = "e", digits = 1), sprintf("%.3f", x)))
+}
+
+t2t4_comparison_stats <- function(activity_long) {
+  cliff_delta <- function(x, y) {
+    x <- x[is.finite(x)]
+    y <- y[is.finite(y)]
+    if (length(x) == 0 || length(y) == 0) return(NA_real_)
+    ranks <- rank(c(x, y), ties.method = "average")
+    n_x <- length(x)
+    n_y <- length(y)
+    u_stat <- sum(ranks[seq_len(n_x)]) - n_x * (n_x + 1) / 2
+    2 * u_stat / (n_x * n_y) - 1
+  }
+
+  downsample_scores <- function(scores, target_n, seed_key) {
+    scores <- scores[is.finite(scores)]
+    if (length(scores) <= target_n) return(scores)
+    set.seed(sum(utf8ToInt(seed_key)) %% .Machine$integer.max)
+    sample(scores, target_n, replace = FALSE)
+  }
+
+  comparisons <- list(
+    list(comparison = "T2/T4>T0/eR4", comparison_type = "main_pooled_downsampled", group_1 = c("T2", "T4"), group_2 = c("T0", "eR4")),
+    list(comparison = "T2>T0", comparison_type = "complementary_pairwise_downsampled", group_1 = "T2", group_2 = "T0"),
+    list(comparison = "T2>eR4", comparison_type = "complementary_pairwise_downsampled", group_1 = "T2", group_2 = "eR4"),
+    list(comparison = "T4>T0", comparison_type = "complementary_pairwise_downsampled", group_1 = "T4", group_2 = "T0"),
+    list(comparison = "T4>eR4", comparison_type = "complementary_pairwise_downsampled", group_1 = "T4", group_2 = "eR4")
+  )
+
+  stats_rows <- lapply(levels(activity_long$MP), function(mp) {
+    mp_df <- activity_long[activity_long$MP == mp, , drop = FALSE]
+    do.call(rbind, lapply(comparisons, function(comp) {
+      score_1_raw <- mp_df$score[as.character(mp_df$sample) %in% comp$group_1]
+      score_2_raw <- mp_df$score[as.character(mp_df$sample) %in% comp$group_2]
+      downsample_n <- min(sum(is.finite(score_1_raw)), sum(is.finite(score_2_raw)))
+      score_1 <- downsample_scores(score_1_raw, downsample_n, paste(mp, comp$comparison, "group_1"))
+      score_2 <- downsample_scores(score_2_raw, downsample_n, paste(mp, comp$comparison, "group_2"))
+      data.frame(
+        MP = as.character(mp),
+        comparison = comp$comparison,
+        comparison_type = comp$comparison_type,
+        group_1 = paste(comp$group_1, collapse = "+"),
+        group_2 = paste(comp$group_2, collapse = "+"),
+        n_group_1_raw = sum(is.finite(score_1_raw)),
+        n_group_2_raw = sum(is.finite(score_2_raw)),
+        downsample_n = downsample_n,
+        mean_group_1_downsampled = mean(score_1, na.rm = TRUE),
+        mean_group_2_downsampled = mean(score_2, na.rm = TRUE),
+        median_group_1_downsampled = stats::median(score_1, na.rm = TRUE),
+        median_group_2_downsampled = stats::median(score_2, na.rm = TRUE),
+        estimate_delta_median = stats::median(score_1, na.rm = TRUE) - stats::median(score_2, na.rm = TRUE),
+        cliffs_delta = cliff_delta(score_1, score_2),
+        p_value = tryCatch(stats::wilcox.test(score_1, score_2, alternative = "greater", exact = FALSE)$p.value, error = function(e) NA_real_),
+        stringsAsFactors = FALSE
+      )
+    }))
+  })
+  dplyr::bind_rows(stats_rows) |>
+    dplyr::group_by(comparison_type) |>
+    dplyr::mutate(p_adj = stats::p.adjust(p_value, method = "BH")) |>
+    dplyr::ungroup() |>
+    dplyr::mutate(
+      delta_label = ifelse(is.na(cliffs_delta), "d=NA", paste0("d=", sprintf("%.2f", cliffs_delta))),
+      group_1_label = gsub("\\+", "/", group_1),
+      group_2_label = gsub("\\+", "/", group_2),
+      p_label = paste0(
+        group_1_label, " (n = ", downsample_n, ") > ", group_2_label, " (n = ", downsample_n, ")",
+        "\np = ", format_p_label(p_value), ", ", delta_label
+      )
+    )
+}
+
+legacy_t2t4_comparison_stats <- function(activity_long) {
+  comparisons <- data.frame(
+    comparison = c("T2>T0", "T2>eR4", "T4>T0", "T4>eR4"),
+    group_1 = c("T2", "T2", "T4", "T4"),
+    group_2 = c("T0", "eR4", "T0", "eR4"),
+    stringsAsFactors = FALSE
+  )
+  stats_rows <- lapply(levels(activity_long$MP), function(mp) {
+    mp_df <- activity_long[activity_long$MP == mp, , drop = FALSE]
+    do.call(rbind, lapply(seq_len(nrow(comparisons)), function(i) {
+      g1 <- comparisons$group_1[i]
+      g2 <- comparisons$group_2[i]
+      score_1 <- mp_df$score[as.character(mp_df$sample) == g1]
+      score_2 <- mp_df$score[as.character(mp_df$sample) == g2]
+      data.frame(
+        MP = as.character(mp),
+        comparison = comparisons$comparison[i],
+        group_1 = g1,
+        group_2 = g2,
+        n_group_1 = sum(is.finite(score_1)),
+        n_group_2 = sum(is.finite(score_2)),
+        mean_group_1 = mean(score_1, na.rm = TRUE),
+        mean_group_2 = mean(score_2, na.rm = TRUE),
+        median_group_1 = stats::median(score_1, na.rm = TRUE),
+        median_group_2 = stats::median(score_2, na.rm = TRUE),
+        estimate_delta_median = stats::median(score_1, na.rm = TRUE) - stats::median(score_2, na.rm = TRUE),
+        p_value = tryCatch(stats::wilcox.test(score_1, score_2, alternative = "greater", exact = FALSE)$p.value, error = function(e) NA_real_),
+        stringsAsFactors = FALSE
+      )
+    }))
+  })
+  dplyr::bind_rows(stats_rows) |>
+    dplyr::mutate(
+      p_adj = stats::p.adjust(p_value, method = "BH"),
+      p_label = paste0(comparison, " q=", format_p_label(p_adj))
+    )
+}
+
 make_activity_plot <- function(ucell_scores, cell_meta, mp_order, title_text, label_map) {
   activity_long <- as.data.frame(ucell_scores[, mp_order, drop = FALSE]) |>
     tibble::rownames_to_column("cell") |>
@@ -212,33 +325,32 @@ make_activity_plot <- function(ucell_scores, cell_meta, mp_order, title_text, la
     tidyr::pivot_longer(cols = dplyr::all_of(mp_order), names_to = "MP", values_to = "score") |>
     dplyr::mutate(sample = factor(sample, levels = parse_samples), MP = factor(MP, levels = mp_order))
 
-  activity_stats <- activity_long |>
-    dplyr::group_by(MP) |>
-    dplyr::summarise(p_value = tryCatch(stats::kruskal.test(score ~ sample)$p.value, error = function(e) NA_real_), .groups = "drop") |>
-    dplyr::mutate(
-      p_adj = stats::p.adjust(p_value, method = "BH"),
-      significance = dplyr::case_when(is.na(p_adj) ~ "", p_adj < 0.001 ~ "***", p_adj < 0.01 ~ "**", p_adj < 0.05 ~ "*", TRUE ~ "ns")
-    )
+  activity_stats <- t2t4_comparison_stats(activity_long)
 
   annot_df <- activity_long |>
     dplyr::group_by(MP) |>
     dplyr::summarise(y_pos = max(score, na.rm = TRUE), .groups = "drop") |>
-    dplyr::left_join(activity_stats, by = "MP") |>
-    dplyr::mutate(y_pos = y_pos + 0.025, label = ifelse(!is.na(p_adj) & p_adj < 0.05, significance, ""))
+    dplyr::left_join(
+      activity_stats |>
+        dplyr::filter(comparison_type == "main_pooled_downsampled") |>
+        dplyr::group_by(MP) |>
+        dplyr::summarise(label = paste(p_label, collapse = "\n"), .groups = "drop"),
+      by = "MP"
+    ) |>
+    dplyr::mutate(y_pos = y_pos + 0.012)
 
   p <- ggplot2::ggplot(activity_long, ggplot2::aes(x = MP, y = score, fill = sample, color = sample)) +
     ggplot2::geom_boxplot(position = ggplot2::position_dodge(width = 0.82), width = 0.62, outlier.shape = NA, alpha = 0.78, linewidth = 0.28, color = "black") +
-    ggplot2::geom_text(data = dplyr::filter(annot_df, label != ""), ggplot2::aes(x = MP, y = y_pos, label = label), inherit.aes = FALSE, size = 3.8, fontface = "bold") +
+    ggplot2::geom_text(data = annot_df, ggplot2::aes(x = MP, y = y_pos, label = label), inherit.aes = FALSE, size = 2.45, lineheight = 0.92, fontface = "bold") +
     ggplot2::scale_fill_manual(values = sample_cols, drop = FALSE, name = "Sample") +
     ggplot2::scale_color_manual(values = sample_cols, guide = "none", drop = FALSE) +
     ggplot2::scale_x_discrete(labels = label_map[mp_order]) +
-    ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0.02, 0.14))) +
-    ggplot2::labs(title = title_text, subtitle = "Per-cell UCell scores; stars mark BH-adjusted Kruskal-Wallis p < 0.05 across samples.", x = NULL, y = "UCell score") +
+    ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0.01, 0.08))) +
+    ggplot2::labs(title = title_text, x = NULL, y = "UCell score") +
     ggplot2::coord_cartesian(clip = "off") +
     ggplot2::theme_classic(base_size = 18) +
     ggplot2::theme(
       plot.title = ggplot2::element_text(face = "bold", size = 24),
-      plot.subtitle = ggplot2::element_blank(),
       axis.text.x = ggplot2::element_text(angle = 45, hjust = 1, vjust = 1, size = 10, colour = "black"),
       axis.text.y = ggplot2::element_text(size = 10, colour = "black"),
       axis.line.x = ggplot2::element_blank(),
@@ -251,6 +363,7 @@ make_activity_plot <- function(ucell_scores, cell_meta, mp_order, title_text, la
 
   list(plot = p, stats = activity_stats)
 }
+####################
 
 plot_retained_outputs <- function(ucell_scores, cell_meta, sample_summary, trend_summary, nMP) {
   retained_mps <- trend_similarity_order(trend_summary)
@@ -269,7 +382,8 @@ plot_retained_outputs <- function(ucell_scores, cell_meta, sample_summary, trend
     boxplot_stats[[i]] <- activity$stats
   }
   dev.off()
-  write.csv(dplyr::bind_rows(boxplot_stats), file.path(out_dir, paste0("Auto_parse_highres_T2T4_activity_boxplots_nMP", nMP, "_selected_stats.csv")), row.names = FALSE)
+  boxplot_stats_df <- dplyr::bind_rows(boxplot_stats)
+  write.csv(boxplot_stats_df, file.path(out_dir, paste0("Auto_parse_highres_T2T4_activity_boxplots_nMP", nMP, "_selected_stats.csv")), row.names = FALSE)
 
   retained_summary <- sample_summary |>
     dplyr::filter(MP %in% retained_mps) |>
@@ -280,9 +394,14 @@ plot_retained_outputs <- function(ucell_scores, cell_meta, sample_summary, trend
     tidyr::pivot_longer(cols = c(mean_score, median_score), names_to = "summary_stat", values_to = "score") |>
     dplyr::mutate(summary_stat = dplyr::recode(summary_stat, mean_score = "Mean", median_score = "Median"), display_label = label_map[as.character(MP)])
   trend_y_limits <- range(trend_long$score, na.rm = TRUE)
-  trend_y_pad <- diff(trend_y_limits) * 0.05
+  trend_y_pad <- diff(trend_y_limits) * 0.03
   if (!is.finite(trend_y_pad) || trend_y_pad == 0) trend_y_pad <- 0.01
   trend_y_limits <- trend_y_limits + c(-trend_y_pad, trend_y_pad)
+  trend_annot_df <- boxplot_stats_df |>
+    dplyr::filter(comparison_type == "main_pooled_downsampled") |>
+    dplyr::group_by(MP) |>
+    dplyr::summarise(label = paste(p_label, collapse = "\n"), .groups = "drop") |>
+    dplyr::mutate(sample = factor("T1", levels = parse_samples), score = trend_y_limits[2] - diff(trend_y_limits) * 0.015, display_label = label_map[MP])
 
   pdf(file.path(out_dir, paste0("Auto_parse_highres_T2T4_mean_median_trends_nMP", nMP, "_selected.pdf")), width = 14, height = 10, useDingbats = FALSE)
   chunks <- chunk_vector(retained_mps, max_mps_per_trend_page)
@@ -294,6 +413,7 @@ plot_retained_outputs <- function(ucell_scores, cell_meta, sample_summary, trend
       ggplot2::ggplot(ggplot2::aes(x = sample, y = score, group = summary_stat, linetype = summary_stat)) +
       ggplot2::geom_line(color = "grey25", linewidth = 0.5) +
       ggplot2::geom_point(ggplot2::aes(fill = sample), shape = 21, size = 2.7, color = "black") +
+      ggplot2::geom_text(data = dplyr::filter(trend_annot_df, MP %in% chunks[[i]]) |> dplyr::mutate(display_label = factor(display_label, levels = chunk_labels)), ggplot2::aes(x = sample, y = score, label = label), inherit.aes = FALSE, size = 2.25, lineheight = 0.92, fontface = "bold") +
       ggplot2::scale_fill_manual(values = sample_cols, guide = "none") +
       ggplot2::scale_linetype_manual(values = c("Mean" = "solid", "Median" = "dashed"), name = NULL) +
       ggplot2::facet_wrap(~display_label, scales = "fixed", ncol = 4) +
