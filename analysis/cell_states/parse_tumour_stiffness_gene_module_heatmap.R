@@ -14,6 +14,7 @@
 # Outputs:
 #   parse_outs/cell_states/tumour_stiffness_gene_module/figures/Auto_parse_tumour_stiffness_module_gene_heatmap.pdf
 #   parse_outs/cell_states/tumour_stiffness_gene_module/figures/Auto_parse_tumour_stiffness_module_gene_heatmap_no_pdo_sur1090.pdf
+#   parse_outs/cell_states/tumour_stiffness_gene_module/figures/Auto_parse_tumour_stiffness_gene_boxplot_T0_T1_T4_eR4.pdf
 #
 # Cache / replot:
 #   The script recomputes the small requested gene/module matrices from
@@ -49,7 +50,8 @@ script_run <- parse_start_run(
   input_files = c("parse_outs/Auto_parse_merged.rds"),
   output_files = c(
     file.path(out_tiers$figures, "Auto_parse_tumour_stiffness_module_gene_heatmap.pdf"),
-    file.path(out_tiers$figures, "Auto_parse_tumour_stiffness_module_gene_heatmap_no_pdo_sur1090.pdf")
+    file.path(out_tiers$figures, "Auto_parse_tumour_stiffness_module_gene_heatmap_no_pdo_sur1090.pdf"),
+    file.path(out_tiers$figures, "Auto_parse_tumour_stiffness_gene_boxplot_T0_T1_T4_eR4.pdf")
   )
 )
 script_run_status <- "failed"
@@ -502,6 +504,122 @@ draw(
   merge_legend = TRUE
 )
 dev.off()
+####################
+
+####################
+# Nature-style boxplot: stiffness gene scores across T0, T1, T4, eR4
+####################
+
+suppressPackageStartupMessages({
+  library(ggplot2)
+  library(ggpubr)
+})
+
+# ---- Nature contract ---------------------------------------------------
+# Claim: Tumour-stiffness gene expression shifts across treatment timepoints.
+# Evidence: Per-gene mean log-normalised expression as individual data points,
+#           with pairwise Wilcoxon rank-sum tests across T0, T1, T4, eR4.
+# Archetype: quantitative grid (single panel).
+# Export: PDF via cairo_pdf, Arial, Nature 6.5 pt base.
+# -------------------------------------------------------------------------
+
+theme_nature_contract <- function(base_size = 6.5, base_family = "Arial") {
+  theme_classic(base_size = base_size, base_family = base_family) +
+    theme(
+      axis.line        = element_line(linewidth = 0.35, colour = "black"),
+      axis.ticks       = element_line(linewidth = 0.35, colour = "black"),
+      axis.title       = element_text(size = base_size),
+      axis.text        = element_text(size = base_size - 0.5),
+      legend.title     = element_text(size = base_size - 0.3),
+      legend.text      = element_text(size = base_size - 0.7),
+      strip.text       = element_text(size = base_size - 0.3, face = "bold"),
+      plot.title       = element_text(size = base_size + 0.5, face = "bold"),
+      panel.grid       = element_blank()
+    )
+}
+
+# Subset to the four requested timepoints
+boxplot_samples <- c("T0", "T1", "T4", "eR4")
+boxplot_samples <- intersect(boxplot_samples, sample_order)
+
+if (length(boxplot_samples) >= 2) {
+
+  # Build long data: one row per gene × sample (gene-level features only)
+  gene_features <- feature_info$feature_id[feature_info$feature_type == "gene"]
+  gene_display  <- setNames(feature_info$display_name[feature_info$feature_type == "gene"],
+                            gene_features)
+
+  box_mat <- raw_score_mat[gene_features, boxplot_samples, drop = FALSE]
+
+  box_df <- as.data.frame(box_mat) |>
+    tibble::rownames_to_column("feature_id") |>
+    tidyr::pivot_longer(
+      cols      = all_of(boxplot_samples),
+      names_to  = "sample",
+      values_to = "mean_log_expr"
+    ) |>
+    dplyr::mutate(
+      gene   = gene_display[feature_id],
+      sample = factor(sample, levels = boxplot_samples)
+    )
+
+  # All pairwise comparisons
+  pair_list <- combn(boxplot_samples, 2, simplify = FALSE)
+
+  # Timepoint colours from config
+  tp_cols <- parse_sample_colours[boxplot_samples]
+
+  p_box <- ggplot(box_df, aes(x = sample, y = mean_log_expr, fill = sample)) +
+    geom_boxplot(
+      width       = 0.55,
+      outlier.shape = NA,
+      linewidth   = 0.3,
+      alpha       = 0.65,
+      colour      = "black"
+    ) +
+    geom_jitter(
+      width  = 0.18,
+      size   = 0.7,
+      alpha  = 0.75,
+      colour = "grey25",
+      stroke = 0
+    ) +
+    stat_compare_means(
+      comparisons   = pair_list,
+      method        = "wilcox.test",
+      label         = "p.signif",
+      size          = 2.2,
+      bracket.size  = 0.3,
+      step.increase = 0.07,
+      tip.length    = 0.015
+    ) +
+    scale_fill_manual(values = tp_cols) +
+    labs(
+      x     = NULL,
+      y     = "Mean log-normalised expression",
+      title = "Tumour stiffness gene expression across treatment timepoints"
+    ) +
+    theme_nature_contract() +
+    theme(
+      legend.position = "none",
+      plot.title      = element_text(size = 7, face = "bold")
+    )
+
+  # Export — Nature single-column width ≈ 89 mm; double-column ≈ 183 mm
+  boxplot_pdf <- file.path(out_tiers$figures,
+                           "Auto_parse_tumour_stiffness_gene_boxplot_T0_T1_T4_eR4.pdf")
+  message("Writing stiffness boxplot PDF: ", boxplot_pdf)
+  grDevices::cairo_pdf(boxplot_pdf,
+                       width  = 89 / 25.4,
+                       height = 100 / 25.4,
+                       family = "Arial")
+  print(p_box)
+  dev.off()
+
+  message("Boxplot saved: ", boxplot_pdf)
+} else {
+  message("Fewer than 2 of the requested boxplot samples (T0, T1, T4, eR4) found — skipping boxplot.")
+}
 ####################
 
 script_run_status <- "success"

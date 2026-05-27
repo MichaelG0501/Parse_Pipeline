@@ -232,6 +232,7 @@ All paths are relative to `parse_outs/` unless absolute paths are specified.
 | `parse_metaprogram_internal_correlation.R` | Within-cohort MP Spearman/Jaccard diagnostics |
 | `parse_metaprogram_external_reference_correlation.R` | Cross-dataset MP correlation and Jaccard overlap against scATLAS/PDO |
 | `parse_highres_mp_strict_mean_median_trend_filter.R` | Active high-resolution MP strict mean/median trend filtering |
+| `parse_highres_mp_tcga_survival_volcano.R` | TCGA whole-profile GSVA/Cox volcano plots for high-resolution Parse MP groups |
 | `legacy_parse_highres_mp_t2t4_comparison_filter.R` | Legacy T2/T4-high high-resolution MP comparison; not downstream |
 
 ### `analysis/cell_states/` — Cell State Analysis
@@ -288,6 +289,7 @@ All paths are relative to `parse_outs/` unless absolute paths are specified.
 | Gene order | `/rds/general/project/spatialtranscriptomics/live/ITH_all/all_samples/hg38_gencode_v27.txt` | Gene position file for InferCNA |
 | Velocity GTF | `/rds/general/project/tumourheterogeneity1/live/ITH_sc/refdata-gex-GRCh38-2024-A/genes/genes.gtf.gz` | RNA velocity gene annotation source |
 | Velocity RepeatMasker | `https://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/rmsk.txt.gz` | Downloaded by `parse_velocity_prepare_inputs.py` if absent |
+| TCGA ESCA metadata and whole-profile TPM | `/rds/general/project/tumourheterogeneity1/ephemeral/scRef_Pipeline/ref_outs/tcga_esca_meta.rds`; `/rds/general/project/tumourheterogeneity1/ephemeral/scRef_Pipeline/ref_outs/cibersortx/TCGA_ESCA_TPM_CIBERSORTx_Mixture.txt` | Reference TCGA dataset used for whole-profile GSVA survival association plots |
 
 ## Sample Information
 
@@ -412,4 +414,15 @@ Do **not** apply this to every R script. Focus on scripts that synthesize data a
 ### Exceptions
 - **Diagnostic/QC scripts**: Step 1-6 pipeline outputs, internal QC heatmaps, and debugging plots should use standard Seurat/ggplot2 defaults to save time.
 - **Development/Test scripts**: `delete_*.R` scripts.
+####################
+
+####################
+## 2026-05-26 Added High-Resolution MP TCGA Survival Volcano Workflow
+
+- Active terminal figure script: `analysis/metaprograms/parse_highres_mp_tcga_survival_volcano.R`.
+- Methodology: `analysis/methodology/metaprograms/highres_mp_tcga_survival_volcano_methodology.md`.
+- Inputs: strict high-resolution increasing/decreasing MP gene lists from `parse_outs/Auto_parse_highres_metaprogram_trends/`, legacy T2/T4-high MP genes from `parse_outs/Auto_parse_highres_metaprogram_trends/Auto_T2T4_gt_T0eR4_filter/`, and the scRef TCGA ESCA metadata/whole-profile TPM compatibility copies under `/rds/general/project/tumourheterogeneity1/ephemeral/scRef_Pipeline/ref_outs/`.
+- Outputs: `parse_outs/highres_mp_tcga_survival/` with `intermediate/`, `tables/`, `figures/`, and `reports/` tiers.
+- Main terminal figures: `parse_outs/highres_mp_tcga_survival/figures/Auto_parse_highres_mp_tcga_survival_volcano_whole_tcga.pdf` plus individual strict-increase, strict-decrease, and legacy-T2/T4-high volcano PDFs/PNGs.
+- Method: whole-TCGA GSVA reference mode followed by Cox survival models in EAC primary tumours. The unsuffixed group volcanoes are continuous-Cox plots; `_median` and `_q1q4` outputs are reference split-model companions.
 ####################

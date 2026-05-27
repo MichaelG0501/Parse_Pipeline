@@ -47,6 +47,7 @@ These scripts produce final or presentation-facing outputs and generally do not 
 - `metaprograms/parse_metaprogram_enrichment_annotation.R`
 - `metaprograms/parse_metaprogram_internal_correlation.R`
 - `metaprograms/parse_metaprogram_external_reference_correlation.R`
+- `metaprograms/parse_highres_mp_tcga_survival_volcano.R`
 - `cell_states/parse_mp_state_abundance_activity_approachB_noreg.R`
 - `cnv/parse_infercna_carroll_reference.R`
 - `trajectory/parse_pseudotime_linear_sample_report.R`
@@ -101,5 +102,16 @@ Existing scripts may retain legacy output locations, but their headers and metho
 - Depends on `parse_outs/by_samples/<sample>/Auto_<sample>_final.rds`, MSigDB Hallmark gene sets via `msigdbr`, the configured cell-cycle gene file, and the PDO-pipeline metaprogram reference for MP4/MP8 lineage metrics.
 - Main outputs live under `parse_outs/t2t4_vs_t0_response/` with `intermediate/`, `tables/`, `figures/`, `logs/`, and `reports/` tiers.
 - Terminal figures include the T2+T4 vs T0 volcano plot, Hallmark FGSEA dot plot, top-DEG sample heatmap, and real-value sample pathway/metric heatmap.
+- No active downstream consumers.
+####################
+
+####################
+## 2026-05-26 High-Resolution MP TCGA Survival Volcano Update
+
+- Added active terminal figure script `metaprograms/parse_highres_mp_tcga_survival_volcano.R`.
+- Methodology: `analysis/methodology/metaprograms/highres_mp_tcga_survival_volcano_methodology.md`.
+- Depends on strict high-resolution MP selected genes/trend summary, legacy T2/T4-high selected genes, and the scRef TCGA ESCA metadata plus whole-profile TPM compatibility copies.
+- Main outputs live under `parse_outs/highres_mp_tcga_survival/` with `intermediate/`, `tables/`, `figures/`, and `reports/` tiers.
+- Terminal figures include the multi-page whole-TCGA volcano PDF and individual strict-increase, strict-decrease, and legacy-T2/T4-high volcano PDFs/PNGs for continuous, median, and q1q4 Cox variants.
 - No active downstream consumers.
 ####################
