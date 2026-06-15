@@ -44,7 +44,8 @@ output_base <- file.path(parse_project_root(), "parse_outs/input/output_combined
 samples <- c("SUR1090_Treated_PDO", "SUR1090_Untreated_PDO")
 
 for (sample_name in samples) {
-  output_dir <- file.path(output_base, sample_name, "DGE_filtered")
+  output_name <- sub("_PDO$", "", sample_name)
+  output_dir <- file.path(output_base, output_name, "DGE_filtered")
   dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
   
   input_file <- file.path(input_dir, paste0(sample_name, ".csv"))

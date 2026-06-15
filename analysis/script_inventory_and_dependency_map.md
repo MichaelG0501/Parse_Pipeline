@@ -55,6 +55,8 @@ These scripts produce final or presentation-facing outputs and generally do not 
 - `trajectory/parse_velocity_scvelo_visualise.py`
 - `plotting/parse_qc_marker_heatmap.R`
 - `summary/parse_filtering_summary_plots.R`
+- `publication/parse_state_abundance_timepoint.R`
+- `publication/parse_highres_metaprogram_heatmap.R`
 
 ## Legacy and Delete Candidates
 
@@ -115,3 +117,50 @@ Existing scripts may retain legacy output locations, but their headers and metho
 - Terminal figures include the multi-page whole-TCGA volcano PDF and individual strict-increase, strict-decrease, and legacy-T2/T4-high volcano PDFs/PNGs for continuous, median, and q1q4 Cox variants.
 - No active downstream consumers.
 ####################
+
+####################
+## 2026-06-08 Publication State Abundance Timepoint Update
+
+- Added active terminal figure script `publication/parse_state_abundance_timepoint.R`.
+- Methodology: `analysis/methodology/publication/state_abundance_timepoint_methodology.md`.
+- Depends on `parse_outs/cell_states/Auto_parse_PDOpipeline_topmp_assignments.rds` (produced by step 7).
+- Main outputs live under `parse_outs/publication/state_abundance_timepoint/` with `tables/` and `figures/` tiers.
+- Terminal figures: `figures/state_abundance_timepoint.pdf` and `.png` — stacked bar of PDO-pipeline state abundance across 6 Parse timepoints, Unresolved/Hybrid excluded.
+- No active downstream consumers.
+####################
+
+####################
+## 2026-06-08 Publication UMAP Samples Update
+
+- Added active terminal figure script `publication/parse_umap_samples.R`.
+- Methodology: `analysis/methodology/publication/umap_samples_methodology.md`.
+- Depends on `parse_outs/Auto_parse_merged.rds`.
+- Main outputs live under `parse_outs/publication/umap_samples/` with `figures/` tier.
+- Terminal figures: `figures/umap_samples.pdf` and `.png` — UMAP visualization of the 6 Parse treatment-response timepoints plus PDO, colored by sample.
+- No active downstream consumers.
+####################
+
+####################
+## 2026-06-08 High-Resolution Metaprogram Heatmap Update
+
+- Added active terminal figure script `publication/parse_highres_metaprogram_heatmap.R`.
+- Methodology: `analysis/methodology/publication/highres_metaprogram_heatmap_methodology.md`.
+- Depends on `parse_outs/Auto_parse_metaprograms/Auto_parse_geneNMF_outs.rds` and `parse_outs/Auto_parse_highres_metaprogram_trends/Auto_parse_highres_geneNMF_metaprograms_nMP<k>.rds`.
+- Main outputs live under `parse_outs/publication/highres_metaprogram_heatmap/` with `figures/` tier.
+- Terminal figures: `figures/highres_metaprogram_heatmap.pdf` and `.png` — ComplexHeatmap visualization of the high-resolution metaprogram splits.
+- No active downstream consumers.
+####################
+
+### `parse_state_abundance_grid.R`
+*   **Location**: `analysis/publication/`
+*   **Purpose**: Generates a 2x2 grid of bar charts showing PDO-pipeline cell-state proportions across the 6 Parse timepoints.
+*   **Run Status**: Terminal figure generation.
+*   **Output Tiers**: `figures/`, `tables/`
+*   **Legacy Status**: Active
+
+### `parse_publication_mp13_mp28_trends.R`
+*   **Location**: `analysis/publication/`
+*   **Purpose**: Generates Nature-style trend plots for MP13 and MP28 across 6 Parse timepoints.
+*   **Run Status**: Terminal figure generation.
+*   **Output Tiers**: `figures/`
+*   **Legacy Status**: Active

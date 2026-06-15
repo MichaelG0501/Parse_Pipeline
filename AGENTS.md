@@ -275,6 +275,12 @@ All paths are relative to `parse_outs/` unless absolute paths are specified.
 | :--- | :--- |
 | `parse_prepare_sur1090_count_matrices.R` | Convert SUR1090 treated/untreated CSV matrices into Parse-compatible DGE_filtered folders |
 
+### `analysis/publication/` — Publication-Quality Figures
+| File | Purpose |
+| :--- | :--- |
+| `parse_survival_plot.R` | Kaplan-Meier curve for stress MP94 using TCGA ESCA |
+| `parse_state_abundance_timepoint.R` | Publication-quality stacked bar of PDO-pipeline state abundance across 6 Parse timepoints (excluding Unresolved/Hybrid) |
+
 ## External Data Dependencies
 
 | Resource | Path | Description |
@@ -377,6 +383,17 @@ Also update `analysis/script_inventory_and_dependency_map.md` in the same change
 ####################
 
 ####################
+## 2026-06-08 Publication UMAP Samples Update
+
+- Added active terminal figure script `analysis/publication/parse_umap_samples.R`.
+- Methodology: `analysis/methodology/publication/umap_samples_methodology.md`.
+- Depends on `parse_outs/Auto_parse_merged.rds`.
+- Main outputs live under `parse_outs/publication/umap_samples/` with `figures/` tier.
+- Terminal figures: `figures/umap_samples.pdf` and `.png` — UMAP visualization of the 6 Parse treatment-response timepoints plus PDO, colored by sample.
+- No active downstream consumers.
+####################
+
+####################
 ## Nature-Figure Publication Skill (Selective Application)
 
 A `nature-figure` skill is installed at `/rds/general/user/sg3723/home/nature-skills/nature-figure/`. It enforces Nature-journal visual standards. **Agents must exercise judgment to apply this skill primarily to scripts producing final, sharable results.**
@@ -425,4 +442,48 @@ Do **not** apply this to every R script. Focus on scripts that synthesize data a
 - Outputs: `parse_outs/highres_mp_tcga_survival/` with `intermediate/`, `tables/`, `figures/`, and `reports/` tiers.
 - Main terminal figures: `parse_outs/highres_mp_tcga_survival/figures/Auto_parse_highres_mp_tcga_survival_volcano_whole_tcga.pdf` plus individual strict-increase, strict-decrease, and legacy-T2/T4-high volcano PDFs/PNGs.
 - Method: whole-TCGA GSVA reference mode followed by Cox survival models in EAC primary tumours. The unsuffixed group volcanoes are continuous-Cox plots; `_median` and `_q1q4` outputs are reference split-model companions.
+####################
+
+####################
+## 2026-06-08 Added Publication State Abundance Timepoint Figure
+
+- Active terminal figure script: `analysis/publication/parse_state_abundance_timepoint.R`.
+- Methodology: `analysis/methodology/publication/state_abundance_timepoint_methodology.md`.
+- Input: `parse_outs/cell_states/Auto_parse_PDOpipeline_topmp_assignments.rds`.
+- Outputs: `parse_outs/publication/state_abundance_timepoint/` with `tables/` and `figures/` tiers.
+- Main terminal figures: `parse_outs/publication/state_abundance_timepoint/figures/state_abundance_timepoint.pdf` and standalone single-column legend `parse_outs/publication/state_abundance_timepoint/figures/state_abundance_legend.pdf`.
+- The stacked bar shows PDO-pipeline state proportions across 6 Parse timepoints (T0, T1, T2, T4, R4, eR4), excluding Unresolved and Hybrid. Uses Nature figure contract style with 6.5pt Arial, cairo_pdf export, original color palette, proportion-only display (no cell counts or secondary axis), and enlarged 9pt bold x-axis labels.
+####################
+
+####################
+## 2026-06-08 Added T2T4 versus T0eR4 High-Res MP Cluster Heatmap
+
+- Active terminal figure script: `analysis/cell_states/parse_t2t4_vs_t0er4_highres_cluster_heatmap.R`.
+- Methodology: `analysis/methodology/cell_states/t2t4_vs_t0er4_highres_cluster_heatmap_methodology.md`.
+- Inputs: `parse_outs/by_samples/<sample>/Auto_<sample>_final.rds`, global metadata `Auto_parse_all_meta.rds`, and PDO `nMP156` metaprogram genes.
+- Outputs: `parse_outs/cell_states/t2t4_vs_t0er4_highres_clusters/` with `intermediate/`, `tables/`, and `figures/` tiers.
+- Main terminal figures: `parse_t2t4_vs_t0er4_cluster_delta_heatmap.pdf`, `parse_t2t4_vs_t0er4_cluster_absolute_heatmap.pdf`, `parse_t2t4_vs_t0er4_MP_delta_heatmap.pdf`.
+- Scored using UCell, grouping T2+T4 against T0+eR4 to evaluate response and baseline difference for PDO-derived MP functional clusters.
+####################
+
+####################
+## 2026-06-08 Added 2x2 Grid State Abundance Plot
+
+- Active terminal figure script: `analysis/publication/parse_state_abundance_grid.R`.
+- Methodology: `analysis/methodology/publication/state_abundance_grid_methodology.md`.
+- Input: `parse_outs/cell_states/Auto_parse_PDOpipeline_topmp_assignments.rds`.
+- Outputs: `parse_outs/publication/state_abundance_grid/` with `figures/` and `tables/` tiers.
+- Terminal figures: `figures/state_abundance_grid.pdf` and `.png` — 2x2 grid of bar charts showing PDO-pipeline cell-state proportions across the 6 Parse timepoints, styled with specific state colors.
+- No active downstream consumers.
+####################
+
+####################
+## 2026-06-09 Added Publication Trend Plots for MP13 and MP28
+
+- Active terminal figure script: `analysis/publication/parse_publication_mp13_mp28_trends.R`.
+- Methodology: `analysis/methodology/publication/mp13_mp28_trends_methodology.md`.
+- Inputs: `Auto_parse_highres_T2T4_sample_ucell_summary_nMP117.csv` and `Auto_parse_highres_sample_ucell_summary_nMP117.csv`.
+- Outputs: `parse_outs/publication/mp_trends/` with `figures/` tier.
+- Terminal figures: `figures/parse_mp13_trend.pdf` and `figures/parse_mp28_trend.pdf` (with `.png` versions) — Nature-style trend plots of mean and median UCell scores across 6 Parse timepoints.
+- No active downstream consumers.
 ####################
