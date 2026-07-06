@@ -41,3 +41,23 @@ Output tiers:
 ## Downstream Use
 
 No active downstream script should consume these outputs. Use only for comparison plots or sensitivity checks.
+####################
+## Centred comparison variant
+
+`analysis/metaprograms/centred/parse_centred_highres_mp_t2t4_comparison_filter.R`
+uses the same T2/T4-high selection rule and reporting logic as
+`analysis/metaprograms/parse_highres_mp_t2t4_comparison_filter.R`. The only
+upstream method change is that the GeneNMF programmes were generated with
+`multiNMF(center = TRUE)`.
+
+The centred T2/T4-high rule is unchanged: retain MPs where mean UCell activity
+in both `T2` and `T4` is higher than both `T0` and `eR4`. Centred outputs are
+isolated under
+`parse_outs/centred/Auto_parse_highres_metaprogram_trends/Auto_T2T4_gt_T0eR4_filter/`.
+
+`analysis/metaprograms/centred/parse_centred_publication_highres_figures.R`
+uses these centred T2/T4-high outputs to build publication-style heatmaps under
+`parse_outs/centred/publication/`. It annotates centred MPs by the best
+uncentred T2/T4-high gene-set Jaccard match and by the automatic top 3CA
+non-cell-cycle label.
+####################

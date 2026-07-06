@@ -59,3 +59,13 @@ Output tiers:
 ## Downstream Use
 
 Required by optimal nMP selection, enrichment annotation, MP correlation, external reference comparison, and Approach B/noreg state assignment.
+####################
+## Centred comparison variant
+
+`analysis/metaprograms/centred/parse_centred_metaprogram_geneNMF_discovery.R`
+uses the same six Parse input samples, k range, caching pattern, and GeneNMF
+programme-sweep logic as `analysis/metaprograms/parse_metaprogram_geneNMF_discovery.R`.
+The only method change is `multiNMF(center = TRUE)`. Outputs are isolated under
+`parse_outs/centred/Auto_parse_metaprograms/` and do not replace the canonical
+uncentred Parse metaprogram objects.
+####################

@@ -39,3 +39,13 @@ Output directory: `parse_outs/publication/highres_metaprogram_heatmap/figures/`
 ## Downstream Dependencies
 
 None. This is a terminal figure generation script.
+####################
+## Centred comparison output
+
+`analysis/metaprograms/centred/parse_centred_publication_highres_figures.R`
+generates the same ComplexHeatmap-style high-resolution programme similarity
+heatmap for centred GeneNMF outputs. The same script also emits centred
+publication-style T2T4-vs-T0eR4 and timepoint MP heatmaps under
+`parse_outs/centred/publication/`, using centred T2/T4-high MPs annotated by
+best uncentred T2/T4-high MP gene-set match.
+####################

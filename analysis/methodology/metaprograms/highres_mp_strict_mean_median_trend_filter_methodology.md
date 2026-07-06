@@ -76,3 +76,16 @@ Output tiers:
 ## Downstream Use
 
 Terminal high-resolution MP workflow. No active downstream script should treat the selected high-resolution MPs as canonical state labels unless explicitly requested.
+####################
+## Centred comparison variant
+
+`analysis/metaprograms/centred/parse_centred_highres_mp_strict_mean_median_trend_filter.R`
+uses the same high-resolution strict mean/median trend workflow as the uncentred
+script. The only upstream method change is that the GeneNMF programmes come from
+`multiNMF(center = TRUE)`. The high-resolution nMP remains computed as half of
+the total Parse NMF programme count from `T0`, `T1`, `T2`, `T4`, `R4`, and
+`eR4`; in the current sweep this is `234 / 2 = nMP117`.
+
+Centred outputs are isolated under
+`parse_outs/centred/Auto_parse_highres_metaprogram_trends/`.
+####################
