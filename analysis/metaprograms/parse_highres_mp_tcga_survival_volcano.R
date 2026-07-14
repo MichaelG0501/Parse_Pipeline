@@ -44,6 +44,8 @@ library(data.table)
 library(dplyr)
 library(ggplot2)
 library(ggrepel)
+library(gridExtra)
+library(grid)
 library(GSVA)
 library(survival)
 library(tidyr)
@@ -54,35 +56,37 @@ source("analysis/common/parse_pipeline_logging.R")
 ####################
 # Paths and run setup
 ####################
-project_dir <- parse_project_root()
+project_dir <- "/rds/general/project/spatialtranscriptomics/live/Parse_Pipeline"
 paths <- parse_paths(project_dir)
-out_dir <- file.path(paths$parse_outs, "highres_mp_tcga_survival")
+out_dir <- file.path(project_dir, "parse_outs", "centred", "highres_mp_tcga_survival")
 tiers <- parse_output_tiers(out_dir, create = TRUE)
 
+base_highres_dir <- file.path(project_dir, "parse_outs", "centred", "Auto_parse_highres_metaprogram_trends")
+
 strict_gene_path <- file.path(
-  paths$parse_outs,
-  "Auto_parse_highres_metaprogram_trends",
+  base_highres_dir,
   "Auto_parse_highres_selected_mp_genes_nMP117.rds"
 )
 strict_trend_path <- file.path(
-  paths$parse_outs,
-  "Auto_parse_highres_metaprogram_trends",
+  base_highres_dir,
   "Auto_parse_highres_trend_summary_nMP117.csv"
 )
 t2t4_gene_path <- file.path(
-  paths$parse_outs,
-  "Auto_parse_highres_metaprogram_trends",
+  base_highres_dir,
   "Auto_T2T4_gt_T0eR4_filter",
   "Auto_parse_highres_T2T4_selected_mp_genes_nMP117.rds"
 )
+t2t4_trend_path <- file.path(
+  base_highres_dir,
+  "Auto_T2T4_gt_T0eR4_filter",
+  "Auto_parse_highres_T2T4_filter_summary_nMP117.csv"
+)
 strict_3ca_label_path <- file.path(
-  paths$parse_outs,
-  "Auto_parse_highres_metaprogram_trends",
+  base_highres_dir,
   "Auto_parse_highres_top_3CA_noncellcycle_nMP117.csv"
 )
 t2t4_3ca_label_path <- file.path(
-  paths$parse_outs,
-  "Auto_parse_highres_metaprogram_trends",
+  base_highres_dir,
   "Auto_T2T4_gt_T0eR4_filter",
   "Auto_parse_highres_T2T4_top_3CA_noncellcycle_nMP117.csv"
 )
@@ -118,7 +122,7 @@ script_run <- parse_start_run(
     min_gsva_genes = 5,
     reuse_gsva = reuse_gsva
   ),
-  input_files = c(strict_gene_path, strict_trend_path, strict_3ca_label_path, t2t4_gene_path, t2t4_3ca_label_path, tcga_meta_path, tcga_tpm_path),
+  input_files = c(strict_gene_path, strict_trend_path, t2t4_trend_path, strict_3ca_label_path, t2t4_gene_path, t2t4_3ca_label_path, tcga_meta_path, tcga_tpm_path),
   output_files = c(
     file.path(tiers$tables, "Auto_parse_highres_mp_tcga_survival_cox_whole_tcga.csv"),
     file.path(tiers$tables, "Auto_parse_highres_mp_tcga_survival_gene_set_summary.csv"),
@@ -133,6 +137,14 @@ on.exit(parse_finish_run(script_run, status = script_run_status), add = TRUE)
 ####################
 # Helpers
 ####################
+make_tcga_page <- function(plot1, plot2, plot3, page_title) {
+  gridExtra::arrangeGrob(
+    plot1, plot2, plot3,
+    ncol = 3,
+    top = grid::textGrob(page_title, gp = grid::gpar(fontsize = 14, fontface = "bold"))
+  )
+}
+
 `%||%` <- function(x, y) {
   if (is.null(x) || length(x) == 0) y else x
 }
@@ -160,21 +172,15 @@ clean_gene_sets <- function(gene_sets) {
   gene_sets[lengths(gene_sets) > 0]
 }
 
-make_group_gene_sets <- function(strict_genes, strict_trends, t2t4_genes) {
-  retained_trends <- strict_trends |>
-    dplyr::filter(retained, MP %in% names(strict_genes))
-
-  increasing_mps <- retained_trends |>
-    dplyr::filter(treatment_direction == "increase") |>
-    dplyr::pull(MP)
-  decreasing_mps <- retained_trends |>
-    dplyr::filter(treatment_direction == "decrease") |>
-    dplyr::pull(MP)
+make_group_gene_sets <- function(strict_genes, strict_trends, t2t4_genes, t2t4_trends) {
+  t2t4_mps <- t2t4_trends$MP[t2t4_trends$retained == TRUE & t2t4_trends$MP %in% names(t2t4_genes)]
+  strict_mps <- strict_trends$MP[strict_trends$retained == TRUE & strict_trends$trend_type_label == "Decrease, Consistent" & strict_trends$MP %in% names(strict_genes)]
+  
+  strict_mps <- setdiff(strict_mps, t2t4_mps)
 
   list(
-    strict_increase = strict_genes[increasing_mps],
-    strict_decrease = strict_genes[decreasing_mps],
-    legacy_t2t4_high = t2t4_genes
+    decrease_consistent = strict_genes[strict_mps],
+    t2t4_high = t2t4_genes[t2t4_mps]
   ) |>
     lapply(clean_gene_sets)
 }
@@ -275,9 +281,8 @@ run_cox <- function(df, feature_cols, split_method = "continuous") {
 
 format_group_label <- function(x) {
   dplyr::case_when(
-    x == "strict_increase" ~ "Increase MPs",
-    x == "strict_decrease" ~ "Decrease MPs",
-    x == "legacy_t2t4_high" ~ "T2T4-high MPs",
+    x == "decrease_consistent" ~ "Decrease/Consistent MPs",
+    x == "t2t4_high" ~ "T2/T4-high MPs",
     TRUE ~ x
   )
 }
@@ -302,25 +307,21 @@ read_3ca_label_table <- function(path) {
 }
 
 make_label_lookup <- function(strict_label_path, t2t4_label_path) {
-  strict_labels <- dplyr::bind_rows(
-    read_3ca_label_table(strict_label_path) |> dplyr::mutate(mp_group = "strict_increase"),
-    read_3ca_label_table(strict_label_path) |> dplyr::mutate(mp_group = "strict_decrease")
-  )
-  t2t4_labels <- read_3ca_label_table(t2t4_label_path) |>
-    dplyr::mutate(mp_group = "legacy_t2t4_high")
+  strict_labels <- read_3ca_label_table(strict_label_path) |> dplyr::mutate(mp_group = "decrease_consistent")
+  t2t4_labels <- read_3ca_label_table(t2t4_label_path) |> dplyr::mutate(mp_group = "t2t4_high")
 
   dplyr::bind_rows(strict_labels, t2t4_labels) |>
     dplyr::mutate(display_label = paste0(MP, "\n", top_3ca_noncc)) |>
     dplyr::select(mp_group, MP, top_3ca_noncc, display_label)
 }
 
-plot_volcano <- function(df, title_text, split_method = "continuous") {
+plot_volcano <- function(df, ttl) {
   if (nrow(df) == 0) {
     return(
       ggplot2::ggplot() +
         ggplot2::theme_void() +
         ggplot2::annotate("text", x = 0, y = 0, label = "No Cox models available", size = 5) +
-        ggplot2::labs(title = paste0(title_text, " - ", format_split_label(split_method)))
+        ggplot2::labs(title = ttl)
     )
   }
 
@@ -332,38 +333,22 @@ plot_volcano <- function(df, title_text, split_method = "continuous") {
       feature_label = display_label
     )
 
-  x_lim <- max(abs(pdat$log2HR[is.finite(pdat$log2HR)]), na.rm = TRUE)
-  x_lim <- max(x_lim, 0.25) * 1.18
-
   ggplot2::ggplot(pdat, ggplot2::aes(log2HR, neglog10)) +
-    ggplot2::geom_point(ggplot2::aes(color = sig), size = 3.2, alpha = 0.9) +
-    ggplot2::geom_hline(yintercept = -log10(0.05), linetype = "dashed", linewidth = 0.45, color = "grey45") +
-    ggplot2::geom_vline(xintercept = 0, linetype = "dashed", linewidth = 0.45, color = "grey45") +
+    ggplot2::geom_point(ggplot2::aes(color = sig), size = 2.8, alpha = 0.9) +
+    ggplot2::geom_hline(yintercept = -log10(0.05), linetype = "dashed", linewidth = 0.4, color = "grey45") +
+    ggplot2::geom_vline(xintercept = 0, linetype = "dashed", linewidth = 0.4, color = "grey45") +
     ggrepel::geom_text_repel(
       ggplot2::aes(label = feature_label),
-      size = 3.3,
-      max.overlaps = Inf,
-      min.segment.length = 0,
-      box.padding = 0.35,
-      point.padding = 0.2
+      size = 2.8,
+      max.overlaps = 100
     ) +
     ggplot2::scale_color_manual(
       values = c("FALSE" = "grey70", "TRUE" = "firebrick3"),
-      labels = c("FALSE" = "p >= 0.05", "TRUE" = "p < 0.05"),
-      name = NULL
+      guide = "none"
     ) +
-    ggplot2::coord_cartesian(xlim = c(-x_lim, x_lim), clip = "off") +
-    ggplot2::theme_minimal(base_size = 13) +
-    ggplot2::theme(
-      plot.title = ggplot2::element_text(face = "bold", size = 16),
-      axis.title = ggplot2::element_text(face = "bold"),
-      axis.text = ggplot2::element_text(colour = "black"),
-      legend.position = "top",
-      panel.grid.minor = ggplot2::element_blank(),
-      plot.margin = ggplot2::margin(12, 28, 12, 12)
-    ) +
+    ggplot2::theme_minimal(base_size = 12) +
     ggplot2::labs(
-      title = paste0(title_text, " - ", format_split_label(split_method)),
+      title = ttl,
       x = "log2(HR)",
       y = "-log10(p)"
     )
@@ -391,12 +376,13 @@ write_plot_outputs <- function(plot_obj, group_name, split_method = "continuous"
 ####################
 # Load inputs
 ####################
-invisible(lapply(c(strict_gene_path, strict_trend_path, t2t4_gene_path), stop_if_missing))
+invisible(lapply(c(strict_gene_path, strict_trend_path, t2t4_gene_path, t2t4_trend_path), stop_if_missing))
 
 strict_genes <- readRDS(strict_gene_path)
 strict_trends <- read.csv(strict_trend_path, check.names = FALSE, stringsAsFactors = FALSE)
 t2t4_genes <- readRDS(t2t4_gene_path)
-group_gene_sets <- make_group_gene_sets(strict_genes, strict_trends, t2t4_genes)
+t2t4_trends <- read.csv(t2t4_trend_path, check.names = FALSE, stringsAsFactors = FALSE)
+group_gene_sets <- make_group_gene_sets(strict_genes, strict_trends, t2t4_genes, t2t4_trends)
 all_gene_sets <- make_unique_feature_names(group_gene_sets)
 label_lookup <- make_label_lookup(strict_3ca_label_path, t2t4_3ca_label_path)
 
@@ -502,31 +488,43 @@ write.csv(
 ####################
 # Volcano figures and report
 ####################
-group_order <- c("strict_increase", "strict_decrease", "legacy_t2t4_high")
+group_order <- c("t2t4_high", "decrease_consistent")
 plot_list <- list()
 for (split_method in split_methods) {
   for (group_name in group_order) {
     plot_key <- paste(group_name, split_method, sep = "|")
     plot_list[[plot_key]] <- plot_volcano(
       cox_res |> dplyr::filter(mp_group == group_name, split_method == .env$split_method),
-      format_group_label(group_name),
-      split_method = split_method
+      paste0("whole_tcga MP volcano (", split_method, ")")
     )
     write_plot_outputs(plot_list[[plot_key]], group_name, split_method)
   }
 }
 
+volcano_page_t2t4 <- make_tcga_page(
+  plot_list[["t2t4_high|continuous"]],
+  plot_list[["t2t4_high|median"]],
+  plot_list[["t2t4_high|q1q4"]],
+  "Centred MP volcano: T2/T4-high MPs"
+)
+
+volcano_page_decrease <- make_tcga_page(
+  plot_list[["decrease_consistent|continuous"]],
+  plot_list[["decrease_consistent|median"]],
+  plot_list[["decrease_consistent|q1q4"]],
+  "Centred MP volcano: Decrease/Consistent MPs"
+)
+
 grDevices::cairo_pdf(
   filename = file.path(tiers$figures, "Auto_parse_highres_mp_tcga_survival_volcano_whole_tcga.pdf"),
-  width = 9,
-  height = 7,
+  width = 18,
+  height = 8,
   onefile = TRUE
 )
-for (split_method in split_methods) {
-  for (group_name in group_order) {
-    print(plot_list[[paste(group_name, split_method, sep = "|")]])
-  }
-}
+grid::grid.newpage()
+grid::grid.draw(volcano_page_t2t4)
+grid::grid.newpage()
+grid::grid.draw(volcano_page_decrease)
 dev.off()
 
 summary_grid <- expand.grid(

@@ -164,3 +164,27 @@ Existing scripts may retain legacy output locations, but their headers and metho
 *   **Run Status**: Terminal figure generation.
 *   **Output Tiers**: `figures/`
 *   **Legacy Status**: Active
+
+####################
+## 2026-06-25 Timepoint SCENIC Regulon Workflow Update
+
+- Added active terminal workflow script `cell_states/parse_timepoint_scenic_regulons.R`.
+- Added PBS wrapper `parse_timepoint_scenic.sh`.
+- Methodology: `analysis/methodology/cell_states/timepoint_scenic_regulons_methodology.md`.
+- Depends on `parse_outs/Auto_parse_merged.rds` and the hg38 refseq-r80 mc9nr RcisTarget databases under `/rds/general/project/tumourheterogeneity1/live/EAC_Ref_all/cistarget_databases_rcistarget_mc9nr/`.
+- Main outputs live under `parse_outs/cell_states/timepoint_scenic/` with `intermediate/`, `tables/`, `figures/`, `logs/`, and `reports/` tiers.
+- The workflow intentionally ignores states and metaprograms. It treats `T0`, `T1`, `T2`, `T4`, `R4`, and `eR4` as the analysis entities in one combined six-timepoint SCENIC run, yielding a shared regulon dictionary for comparable regulon AUC/RSS/differential activity across timepoints. Independent per-timepoint SCENIC runs are disabled because they create non-comparable regulon target dictionaries.
+- Heatmap outputs use strict timepoint column order `T0`, `T1`, `T2`, `T4`, `R4`, `eR4`; the top-specificity companion output selects the top 20 RSS-specific regulons per timepoint and orders them by decreasing specificity within each timepoint.
+- GENIE3 resumes from saved `int/1.3_GENIE3_weightMatrix_part_*.Rds` files with `resumePreviousRun = TRUE`; default `genie3_nparts = 100` keeps continuation chunks smaller after HPC walltime kills.
+- No active downstream consumers.
+####################
+
+####################
+## 2026-06-30 Centred GeneNMF Method-Comparison Workflow Update
+
+- Added active comparison scripts under `metaprograms/centred/`: `parse_centred_metaprogram_geneNMF_discovery.R`, `parse_centred_highres_mp_strict_mean_median_trend_filter.R`, `parse_centred_highres_mp_t2t4_comparison_filter.R`, `parse_centred_t2t4_vs_t0er4_highres_cluster_heatmap.R`, `parse_compare_centred_vs_uncentred_highres_mps.R`, and `parse_centred_publication_highres_figures.R`.
+- Added PBS wrapper `parse_centred_metaprogram_workflow.sh`.
+- Methodology notes were appended to the original method files rather than maintaining separate centred methodology files: `metaprogram_geneNMF_discovery_methodology.md`, `highres_mp_strict_mean_median_trend_filter_methodology.md`, `legacy_highres_mp_t2t4_comparison_filter_methodology.md`, and `publication/highres_metaprogram_heatmap_methodology.md`.
+- Main outputs live under `parse_outs/centred/` with high-resolution trend, T2/T4-high filter, publication figure, comparison table, figure, and report subdirectories.
+- The workflow compares centred `multiNMF(center = TRUE)` retained MPs against existing uncentred retained MPs by gene-set Jaccard best match and automatic top 3CA non-cell-cycle annotation agreement. The high-resolution nMP is computed as half of the total NMF programmes from `T0`, `T1`, `T2`, `T4`, `R4`, and `eR4` (currently 234 / 2 = nMP117), not from the external PDO nMP156 object. It is terminal comparison work and does not replace canonical uncentred Parse MPs.
+####################

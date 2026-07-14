@@ -104,8 +104,8 @@ These rules are **mandatory** for any agent operating in this repo:
 
 1. **Working directory**: All outputs go to `parse_outs/`. Never write outside project paths.
 2. **Conda init**: Always run `eval "$(~/miniforge3/bin/conda shell.bash hook)"` before activating envs.
-3. **Interactive first**: Tasks under 8 cores / 64 GB → write only the `.R` script, no `.sh` wrapper. User runs interactively.
-4. **PBS required**: Heavy tasks → must create PBS `.sh` script with `#PBS` resource headers.
+3. **No Heavy Workloads on Login Nodes (MANDATORY)**: Strictly prohibit running any computationally, memory, or IO intensive workloads on the login nodes, as it adversely affects other users. Any even slightly larger workloads MUST be submitted to the batch queue via PBS `qsub`.
+4. **PBS required**: All analytical and heavy tasks → must create PBS `.sh` script with `#PBS` resource headers and submit to the queue. Interactive scripts on login nodes are only permitted for very light, trivial tasks.
 5. **Live Logging**: Always use live streaming log file mode by adding `#PBS -koed` to the submission script.
 6. **File naming**: Active analysis scripts should use informative names without the old `Auto_` script prefix. Use `legacy_` for comparison-only scripts and `delete_` for scripts the user should manually remove. Existing output filenames may keep `Auto_parse_*` for downstream compatibility.
 7. **Modifying existing files**: New code MUST be wrapped in 20-hash comment blocks:
@@ -122,6 +122,7 @@ These rules are **mandatory** for any agent operating in this repo:
 13. **Output tiers**: New or substantially revised workflows should organize outputs into `intermediate/`, `tables/`, `figures/`, `logs/`, and `reports/` within their output directory. Existing legacy output locations can stay stable but must be classified in the header/methodology.
 14. **Run summaries**: Long-running R scripts should use `analysis/common/parse_pipeline_logging.R` to write `parse_outs/logs/run_summaries/<script>_<timestamp>.txt` with start/end time, inputs, outputs, parameters, cache reuse, and session info.
 15. **Plot readability**: Slide-facing plots must use readable font sizes, legend text, row/column labels, and point sizes. Prefer wide PDFs/PNGs and avoid tiny labels that cannot be read in PowerPoint.
+16. **Storage policy — live vs ephemeral**: All scripts, final outputs (RDS data objects, figures, tables, logs, reports), and **all critical inputs required for replotting** must be read from and written to the `live` project path (`/rds/general/project/spatialtranscriptomics/live/Parse_Pipeline/`). **Exception**: exceptionally large intermediate/cache files (typically under `intermediate/` output tiers) should continue to be stored under the corresponding `ephemeral` path (`/rds/general/project/spatialtranscriptomics/ephemeral/Parse_Pipeline/`). **CRITICAL**: The `live` storage must be completely self-sufficient for final presentations; even if the `ephemeral` directory is completely deleted, you must still be able to easily reproduce all plots and critical information using only the files saved in `live/`. Scripts must `dir.create(..., recursive = TRUE, showWarnings = FALSE)` for ephemeral intermediate paths if they do not exist.
 
 ### PBS Job Template
 ```bash
@@ -135,7 +136,7 @@ module purge
 module load tools/dev
 eval "$(~/miniforge3/bin/conda shell.bash hook)"
 source activate /rds/general/user/sg3723/home/anaconda3/envs/dmtcp
-WD=/rds/general/project/spatialtranscriptomics/ephemeral/Parse_Pipeline
+WD=/rds/general/project/spatialtranscriptomics/live/Parse_Pipeline
 cd $WD
 Rscript <script>.R
 echo $(date +%T)
@@ -285,17 +286,17 @@ All paths are relative to `parse_outs/` unless absolute paths are specified.
 
 | Resource | Path | Description |
 | :--- | :--- | :--- |
-| scATLAS epithelial | `/rds/general/project/tumourheterogeneity1/ephemeral/scRef_Pipeline/ref_outs/EAC_Ref_epi.rds` | Reference epithelial Seurat for cross-data comparison |
-| scATLAS MPs | `/rds/general/project/tumourheterogeneity1/ephemeral/scRef_Pipeline/ref_outs/Metaprogrammes_Results/geneNMF_metaprograms_nMP_19.rds` | scATLAS metaprogram definitions |
-| scATLAS UCell scores | `/rds/general/project/tumourheterogeneity1/ephemeral/scRef_Pipeline/ref_outs/UCell_nMP19_filtered.rds` | Filtered UCell scores |
-| PDO-pipeline MPs | `/rds/general/project/tumourheterogeneity1/ephemeral/PDOs_Pipeline/PDOs_outs/Metaprogrammes_Results/geneNMF_metaprograms_nMP_13.rds` | PDO metaprogram definitions for Approach B/noreg state assignment |
-| Carroll CNV reference | `/rds/general/project/tumourheterogeneity1/ephemeral/scRef_Pipeline/ref_outs/Carroll_2023_reference.rds` | External InferCNA reference |
+| scATLAS epithelial | `/rds/general/project/tumourheterogeneity1/live/scRef_Pipeline/ref_outs/EAC_Ref_epi.rds` | Reference epithelial Seurat for cross-data comparison |
+| scATLAS MPs | `/rds/general/project/tumourheterogeneity1/live/scRef_Pipeline/ref_outs/Metaprogrammes_Results/geneNMF_metaprograms_nMP_19.rds` | scATLAS metaprogram definitions |
+| scATLAS UCell scores | `/rds/general/project/tumourheterogeneity1/live/scRef_Pipeline/ref_outs/UCell_nMP19_filtered.rds` | Filtered UCell scores |
+| PDO-pipeline MPs | `/rds/general/project/tumourheterogeneity1/live/PDOs_Pipeline/PDOs_outs/Metaprogrammes_Results/geneNMF_metaprograms_nMP_13.rds` | PDO metaprogram definitions for Approach B/noreg state assignment |
+| Carroll CNV reference | `/rds/general/project/tumourheterogeneity1/live/scRef_Pipeline/ref_outs/Carroll_2023_reference.rds` | External InferCNA reference |
 | 3CA gene sets | `/rds/general/project/tumourheterogeneity1/live/ITH_sc/PDOs/Count_Matrix/New_NMFs.csv` | Pan-cancer 3CA metaprograms |
 | Cell cycle genes | `/rds/general/project/tumourheterogeneity1/live/EAC_Ref_all/Cell_Cycle_Genes.csv` | Cell cycle gene annotations |
 | Gene order | `/rds/general/project/spatialtranscriptomics/live/ITH_all/all_samples/hg38_gencode_v27.txt` | Gene position file for InferCNA |
 | Velocity GTF | `/rds/general/project/tumourheterogeneity1/live/ITH_sc/refdata-gex-GRCh38-2024-A/genes/genes.gtf.gz` | RNA velocity gene annotation source |
 | Velocity RepeatMasker | `https://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/rmsk.txt.gz` | Downloaded by `parse_velocity_prepare_inputs.py` if absent |
-| TCGA ESCA metadata and whole-profile TPM | `/rds/general/project/tumourheterogeneity1/ephemeral/scRef_Pipeline/ref_outs/tcga_esca_meta.rds`; `/rds/general/project/tumourheterogeneity1/ephemeral/scRef_Pipeline/ref_outs/cibersortx/TCGA_ESCA_TPM_CIBERSORTx_Mixture.txt` | Reference TCGA dataset used for whole-profile GSVA survival association plots |
+| TCGA ESCA metadata and whole-profile TPM | `/rds/general/project/tumourheterogeneity1/live/scRef_Pipeline/ref_outs/tcga_esca_meta.rds`; `/rds/general/project/tumourheterogeneity1/live/scRef_Pipeline/ref_outs/cibersortx/TCGA_ESCA_TPM_CIBERSORTx_Mixture.txt` | Reference TCGA dataset used for whole-profile GSVA survival association plots |
 
 ## Sample Information
 
@@ -438,7 +439,7 @@ Do **not** apply this to every R script. Focus on scripts that synthesize data a
 
 - Active terminal figure script: `analysis/metaprograms/parse_highres_mp_tcga_survival_volcano.R`.
 - Methodology: `analysis/methodology/metaprograms/highres_mp_tcga_survival_volcano_methodology.md`.
-- Inputs: strict high-resolution increasing/decreasing MP gene lists from `parse_outs/Auto_parse_highres_metaprogram_trends/`, legacy T2/T4-high MP genes from `parse_outs/Auto_parse_highres_metaprogram_trends/Auto_T2T4_gt_T0eR4_filter/`, and the scRef TCGA ESCA metadata/whole-profile TPM compatibility copies under `/rds/general/project/tumourheterogeneity1/ephemeral/scRef_Pipeline/ref_outs/`.
+- Inputs: strict high-resolution increasing/decreasing MP gene lists from `parse_outs/Auto_parse_highres_metaprogram_trends/`, legacy T2/T4-high MP genes from `parse_outs/Auto_parse_highres_metaprogram_trends/Auto_T2T4_gt_T0eR4_filter/`, and the scRef TCGA ESCA metadata/whole-profile TPM compatibility copies under `/rds/general/project/tumourheterogeneity1/live/scRef_Pipeline/ref_outs/`.
 - Outputs: `parse_outs/highres_mp_tcga_survival/` with `intermediate/`, `tables/`, `figures/`, and `reports/` tiers.
 - Main terminal figures: `parse_outs/highres_mp_tcga_survival/figures/Auto_parse_highres_mp_tcga_survival_volcano_whole_tcga.pdf` plus individual strict-increase, strict-decrease, and legacy-T2/T4-high volcano PDFs/PNGs.
 - Method: whole-TCGA GSVA reference mode followed by Cox survival models in EAC primary tumours. The unsuffixed group volcanoes are continuous-Cox plots; `_median` and `_q1q4` outputs are reference split-model companions.
@@ -486,4 +487,30 @@ Do **not** apply this to every R script. Focus on scripts that synthesize data a
 - Outputs: `parse_outs/publication/mp_trends/` with `figures/` tier.
 - Terminal figures: `figures/parse_mp13_trend.pdf` and `figures/parse_mp28_trend.pdf` (with `.png` versions) — Nature-style trend plots of mean and median UCell scores across 6 Parse timepoints.
 - No active downstream consumers.
+####################
+
+####################
+## 2026-06-25 Added Timepoint SCENIC Regulon Workflow
+
+- Active terminal workflow script: `analysis/cell_states/parse_timepoint_scenic_regulons.R`.
+- PBS wrapper: `parse_timepoint_scenic.sh`.
+- Methodology: `analysis/methodology/cell_states/timepoint_scenic_regulons_methodology.md`.
+- Input: `parse_outs/Auto_parse_merged.rds`.
+- Database confirmed from the PDO SCENIC workflow: `/rds/general/project/tumourheterogeneity1/live/EAC_Ref_all/cistarget_databases_rcistarget_mc9nr/`, using the hg38 refseq-r80 mc9nr RcisTarget feather files. The sibling `cistarget_databases/` directory contains v10-clust feather files and is not the PDO workflow default.
+- Outputs: `parse_outs/cell_states/timepoint_scenic/` with `intermediate/`, `tables/`, `figures/`, `logs/`, and `reports/` tiers.
+- The workflow intentionally ignores cell-state and MP concepts. It treats `T0`, `T1`, `T2`, `T4`, `R4`, and `eR4` as entities in one combined six-timepoint SCENIC analysis for comparable regulon AUC/RSS/differential activity. Independent per-timepoint SCENIC analyses are disabled because they create non-comparable regulon target dictionaries.
+- Heatmaps use strict timepoint column order `T0`, `T1`, `T2`, `T4`, `R4`, `eR4`. The default heatmap selects the union of top RSS-specific regulons per timepoint; `combined_timepoint_balanced2600_top20_specific_regulon_heatmap.pdf` selects the top 20 balanced-RSS regulons per timepoint, and `combined_timepoint_balanced2600_top20_gap_regulon_heatmap.pdf` selects the top regulons by positive RSS gap versus the next-highest timepoint.
+- GENIE3 is run with `resumePreviousRun = TRUE` and `genie3_nparts = 100` by default. Existing `int/1.3_GENIE3_weightMatrix_part_*.Rds` files are reused after walltime interruption, and continuation jobs resume remaining target genes instead of restarting.
+- No active downstream consumers.
+####################
+
+####################
+## 2026-06-30 Added Centred GeneNMF Method-Comparison Workflow
+
+- Active comparison scripts now live under `analysis/metaprograms/centred/`: `parse_centred_metaprogram_geneNMF_discovery.R`, `parse_centred_highres_mp_strict_mean_median_trend_filter.R`, `parse_centred_highres_mp_t2t4_comparison_filter.R`, `parse_centred_t2t4_vs_t0er4_highres_cluster_heatmap.R`, `parse_compare_centred_vs_uncentred_highres_mps.R`, and `parse_centred_publication_highres_figures.R`.
+- PBS wrapper: `parse_centred_metaprogram_workflow.sh`.
+- Methodology documentation is kept in the original method files because the centred steps are method-identical except for upstream `multiNMF(center = TRUE)`: `metaprogram_geneNMF_discovery_methodology.md`, `highres_mp_strict_mean_median_trend_filter_methodology.md`, `legacy_highres_mp_t2t4_comparison_filter_methodology.md`, and `publication/highres_metaprogram_heatmap_methodology.md`.
+- Inputs: final per-sample Parse Seurat objects, centred GeneNMF caches under `parse_outs/centred/Auto_parse_metaprograms/`, canonical state assignments, and existing uncentred high-resolution outputs for comparison.
+- Outputs: all centred method outputs live under `parse_outs/centred/`, including `Auto_parse_highres_metaprogram_trends/`, `Auto_parse_highres_metaprogram_trends/Auto_T2T4_gt_T0eR4_filter/`, `comparison/`, and `publication/` figure tiers.
+- The centred workflow runs `multiNMF(center = TRUE)`, derives high-resolution MPs at half the total NMF programme count from `T0`, `T1`, `T2`, `T4`, `R4`, and `eR4` (currently 234 / 2 = nMP117), runs the T2/T4-high filter from `parse_highres_mp_t2t4_comparison_filter.R`, annotates centred MPs with automatic top 3CA non-cell-cycle labels and best uncentred T2/T4-high MP gene-set matches, and compares centred versus uncentred retained MPs. It does not use the external PDO nMP156 object.
 ####################
