@@ -124,6 +124,19 @@ These rules are **mandatory** for any agent operating in this repo:
 15. **Plot readability**: Slide-facing plots must use readable font sizes, legend text, row/column labels, and point sizes. Prefer wide PDFs/PNGs and avoid tiny labels that cannot be read in PowerPoint.
 16. **Storage policy — live vs ephemeral**: All scripts, final outputs (RDS data objects, figures, tables, logs, reports), and **all critical inputs required for replotting** must be read from and written to the `live` project path (`/rds/general/project/spatialtranscriptomics/live/Parse_Pipeline/`). **Exception**: exceptionally large intermediate/cache files (typically under `intermediate/` output tiers) should continue to be stored under the corresponding `ephemeral` path (`/rds/general/project/spatialtranscriptomics/ephemeral/Parse_Pipeline/`). **CRITICAL**: The `live` storage must be completely self-sufficient for final presentations; even if the `ephemeral` directory is completely deleted, you must still be able to easily reproduce all plots and critical information using only the files saved in `live/`. Scripts must `dir.create(..., recursive = TRUE, showWarnings = FALSE)` for ephemeral intermediate paths if they do not exist.
 
+    **Decision checklist — before writing ANY `.rds`, `.csv`, or `.pdf` with `saveRDS` / `write.csv` / `ggsave`:**
+    1. Is this file read by a *different* downstream script (not just the script that created it)?  → **Must be in `live`**.
+    2. Is this a per-cell score matrix, state vector, gene list, or enrichment result that downstream plotting or annotation scripts depend on?  → **Must be in `live`**.
+    3. Is this file needed to regenerate any figure or table without re-running the producing script?  → **Must be in `live`**.
+    4. Is this file *only* a cache to speed up re-runs of the *same* script and can be fully regenerated from inputs already in `live`?  → Ephemeral is acceptable, but a live copy is still preferred.
+
+    **When in doubt, save to BOTH `live` and `ephemeral`** (ephemeral as cache, live as the persistent copy). Use the pattern:
+    ```r
+    saveRDS(obj, file.path(outdir_ephemeral, "filename.rds"))  # cache
+    saveRDS(obj, file.path(outdir_live, "filename.rds"))        # persistent
+    ```
+17. **Strictly forbid fallbacks**: Must use only the first and best option for any analysis. If not available or if it fails, the script should stop immediately.
+
 ### PBS Job Template
 ```bash
 #!/bin/bash
