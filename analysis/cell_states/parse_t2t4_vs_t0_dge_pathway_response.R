@@ -20,7 +20,8 @@
 #   parse_outs/t2t4_vs_t0_response/tables/parse_t2t4_vs_t0_hallmark_fgsea.csv
 #   parse_outs/t2t4_vs_t0_response/tables/parse_t2t4_vs_t0_sample_pathway_metric_scores.csv
 #   parse_outs/t2t4_vs_t0_response/figures/parse_t2t4_vs_t0_volcano.{pdf,png}
-#   parse_outs/t2t4_vs_t0_response/figures/parse_t2t4_vs_t0_hallmark_fgsea_dotplot.{pdf,png}
+#   parse_outs/t2t4_vs_t0_response/figures/parse_t2t4_vs_t0_hallmark_fgsea_dotplot_enriched.{pdf,png}
+#   parse_outs/t2t4_vs_t0_response/figures/parse_t2t4_vs_t0_hallmark_fgsea_dotplot_depleted.{pdf,png}
 #   parse_outs/t2t4_vs_t0_response/figures/parse_t2t4_vs_t0_top_deg_sample_heatmap.pdf
 #   parse_outs/t2t4_vs_t0_response/figures/parse_sample_real_value_pathway_metric_heatmap.pdf
 #   parse_outs/t2t4_vs_t0_response/intermediate/parse_t2t4_vs_t0_response_results.rds
@@ -376,25 +377,50 @@ p_volcano <- ggplot(deg_tbl, aes(log2FC, neg_log10_fdr)) +
   geom_vline(xintercept = c(-volcano_logfc_cut, volcano_logfc_cut), linetype = "dashed", linewidth = 0.25, colour = "grey55") +
   geom_hline(yintercept = -log10(volcano_fdr_cut), linetype = "dashed", linewidth = 0.25, colour = "grey55") +
   ggrepel::geom_text_repel(
-    data = label_genes,
+    data = label_genes %>% filter(log2FC < 0),
     aes(label = gene),
-    size = 2.0,
+    size = 2.4,
     min.segment.length = 0,
     max.overlaps = Inf,
-    box.padding = 0.25,
+    box.padding = 0.6,
+    point.padding = 0.4,
+    force = 2.5,
     segment.size = 0.22,
+    xlim = c(NA, -0.5),
+    seed = 1090
+  ) +
+  ggrepel::geom_text_repel(
+    data = label_genes %>% filter(log2FC > 0),
+    aes(label = gene),
+    size = 2.4,
+    min.segment.length = 0,
+    max.overlaps = Inf,
+    box.padding = 0.6,
+    point.padding = 0.4,
+    force = 2.5,
+    segment.size = 0.22,
+    xlim = c(0.5, NA),
     seed = 1090
   ) +
   scale_colour_manual(values = volcano_cols, drop = FALSE, name = NULL) +
   scale_x_continuous(labels = label_number(accuracy = 0.1)) +
-  scale_y_continuous(labels = label_number(accuracy = 1)) +
+  scale_y_continuous(
+    labels = label_number(accuracy = 1),
+    expand = expansion(mult = c(0.05, 0.2))
+  ) +
   labs(
     title = "T2+T4 versus T0 differential genes",
     subtitle = "Approximate per-cell Wilcoxon test; positive log2FC indicates higher expression in T2+T4",
     x = "Average log2 fold-change",
     y = "-log10 adjusted P"
   ) +
-  theme(legend.position = "top")
+  theme(
+    legend.position = "top",
+    legend.text = element_text(size = 9),
+    axis.text = element_text(size = 9),
+    axis.title = element_text(size = 11)
+  ) +
+  guides(colour = guide_legend(override.aes = list(size = 5)))
 
 save_pub_pdf_png(
   p_volcano,
@@ -441,17 +467,15 @@ write.csv(
   row.names = FALSE
 )
 
-fgsea_plot_tbl <- fgsea_tbl %>%
-  filter(is.finite(NES), !is.na(padj)) %>%
-  group_by(direction) %>%
-  slice_min(order_by = padj, n = 12, with_ties = FALSE) %>%
-  ungroup() %>%
+fgsea_plot_tbl_enriched <- fgsea_tbl %>%
+  filter(is.finite(NES), !is.na(padj), NES > 0) %>%
+  slice_min(order_by = padj, n = 15, with_ties = FALSE) %>%
   mutate(
     pathway_label = factor(pathway_label, levels = pathway_label[order(NES)]),
     fdr_display = pmax(padj, 1e-10)
   )
 
-p_fgsea <- ggplot(fgsea_plot_tbl, aes(NES, pathway_label)) +
+p_fgsea_enriched <- ggplot(fgsea_plot_tbl_enriched, aes(NES, pathway_label)) +
   geom_vline(xintercept = 0, colour = "grey60", linewidth = 0.3) +
   geom_point(aes(size = -log10(fdr_display), colour = NES), alpha = 0.92) +
   scale_colour_gradient2(
@@ -463,16 +487,62 @@ p_fgsea <- ggplot(fgsea_plot_tbl, aes(NES, pathway_label)) +
   ) +
   scale_size_continuous(name = "-log10 FDR", range = c(1.3, 4.8)) +
   labs(
-    title = "Hallmark pathway enrichment",
+    title = "Hallmark pathway enrichment (Enriched in T2+T4)",
     subtitle = "Ranked by T2+T4 versus T0 average log2 fold-change",
     x = "Normalised enrichment score",
     y = NULL
   ) +
-  theme(legend.position = "right")
+  theme(
+    legend.position = "right",
+    legend.text = element_text(size = 14),
+    legend.title = element_text(size = 14),
+    axis.text = element_text(size = 9),
+    axis.title = element_text(size = 11)
+  )
 
 save_pub_pdf_png(
-  p_fgsea,
-  file.path(tiers$figures, "parse_t2t4_vs_t0_hallmark_fgsea_dotplot"),
+  p_fgsea_enriched,
+  file.path(tiers$figures, "parse_t2t4_vs_t0_hallmark_fgsea_dotplot_enriched"),
+  width_mm = 170,
+  height_mm = 130
+)
+
+fgsea_plot_tbl_depleted <- fgsea_tbl %>%
+  filter(is.finite(NES), !is.na(padj), NES < 0) %>%
+  slice_min(order_by = padj, n = 15, with_ties = FALSE) %>%
+  mutate(
+    pathway_label = factor(pathway_label, levels = pathway_label[order(NES)]),
+    fdr_display = pmax(padj, 1e-10)
+  )
+
+p_fgsea_depleted <- ggplot(fgsea_plot_tbl_depleted, aes(NES, pathway_label)) +
+  geom_vline(xintercept = 0, colour = "grey60", linewidth = 0.3) +
+  geom_point(aes(size = -log10(fdr_display), colour = NES), alpha = 0.92) +
+  scale_colour_gradient2(
+    low = palette_contract["signal_blue"],
+    mid = "white",
+    high = palette_contract["accent_red"],
+    midpoint = 0,
+    name = "NES"
+  ) +
+  scale_size_continuous(name = "-log10 FDR", range = c(1.3, 4.8)) +
+  labs(
+    title = "Hallmark pathway enrichment (Depleted in T2+T4)",
+    subtitle = "Ranked by T2+T4 versus T0 average log2 fold-change",
+    x = "Normalised enrichment score",
+    y = NULL
+  ) +
+  theme(
+    legend.position = "right",
+    legend.text = element_text(size = 14),
+    legend.title = element_text(size = 14),
+    axis.text = element_text(size = 9),
+    axis.title = element_text(size = 11)
+  )
+
+save_pub_pdf_png(
+  p_fgsea_depleted,
+  file.path(tiers$figures, "parse_t2t4_vs_t0_hallmark_fgsea_dotplot_depleted"),
   width_mm = 170,
   height_mm = 130
 )
@@ -744,7 +814,8 @@ writeLines(
     "",
     "## Main outputs",
     "- `figures/parse_t2t4_vs_t0_volcano.pdf`",
-    "- `figures/parse_t2t4_vs_t0_hallmark_fgsea_dotplot.pdf`",
+    "- `figures/parse_t2t4_vs_t0_hallmark_fgsea_dotplot_enriched.pdf`",
+    "- `figures/parse_t2t4_vs_t0_hallmark_fgsea_dotplot_depleted.pdf`",
     "- `figures/parse_sample_real_value_pathway_metric_heatmap.pdf`",
     "- `tables/parse_t2t4_vs_t0_differential_genes.csv`",
     "- `tables/parse_t2t4_vs_t0_hallmark_fgsea.csv`",

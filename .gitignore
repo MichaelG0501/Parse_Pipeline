@@ -27,3 +27,10 @@ __pycache__/
 *.synctex.gz
 *.fls
 *.fdb_latexmk
+
+# Local, reconstructable PBS launchers (mirror analysis/)
+/job_scripts/
+
+# PBS live stdout/stderr written directly in the project root
+/*.OU
+/*.ER

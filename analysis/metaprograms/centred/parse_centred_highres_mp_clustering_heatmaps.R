@@ -48,32 +48,63 @@ strict_mps <- setdiff(strict_mps, t2t4_mps)
 retained_mps <- c(t2t4_mps, strict_mps)
 cat("Found", length(retained_mps), "unique MPs to cluster.\n")
 
-# Load MP Enrichment Annotations exactly as done in the pipeline
-anno_strict_path <- file.path(base_highres_dir, "Auto_parse_highres_top_3CA_noncellcycle_nMP117.csv")
-anno_t2t4_path <- file.path(base_highres_dir, "Auto_T2T4_gt_T0eR4_filter", "Auto_parse_highres_T2T4_top_3CA_noncellcycle_nMP117.csv")
+# T2T4 HIGH PROGRAMS
+mp_t2t4_high <- c(
+  "MP43"  = "Drug-Tolerant Stress-Adapted & Cycling-Persister",
+  "MP95"  = "Stress-Adapted UPR-ISR w/ Metabolic & Redox Rewiring",
+  "MP101" = "Gastric Intestinal Metaplasia (IM) Lineage",
+  "MP75"  = "ECM-Interacting w/ Migration, Plasticity & Metabolic Adapt.",
+  "MP48"  = "Partial-EMT Mechanotransduction Persistent",
+  "MP109" = "Mixed Migratory-Mitotic Stress",
+  "MP16"  = "Senescent-Migratory w/ Autophagy",
+  "MP30"  = "Integrated Stress Response (ISR) & Metabolic Adapt.",
+  "MP40"  = "Stress-Adapted Cycling",
+  "MP12"  = "Integrated Stress-Adapted w/ Cycling & Secretion",
+  "MP11"  = "Canonical UPR-ISR Nutrient-Stress",
+  "MP92"  = "Mitotic Surveillance & Metaphase-Anaphase Transition",
+  "MP21"  = "Late-Treatment Cycling-Persister",
+  "MP53"  = "AURKA-PLK1 Late-Treatment Mitotic-Survival w/ Plasticity",
+  "MP78"  = "Cycling-Persister-Like Mitotic",
+  "MP74"  = "Partial-EMT-Like w/ Migration & ECM-Remodeling",
+  "MP83"  = "Inflammatory Migratory-Plasticity",
+  "MP50"  = "Wound Response & ECM Remodeling",
+  "MP9"   = "Inflammatory NF-kB Survival",
+  "MP82"  = "Cycling-Persister-Like",
+  "MP96"  = "G2-M Cycling-Persister-Like w/ Epithelial-Basal ID",
+  "MP60"  = "TGFb-EGFR Migratory-Plasticity w/ NF-kB Survival",
+  "MP86"  = "Proliferative Cycling pEMT-Like Hybrid",
+  "MP17"  = "IGF-ECM Developmental & Neural-Like Signalling Plasticity",
+  "MP36"  = "Cycling-Persister-Like w/ Plasticity",
+  "MP49"  = "Cycling Intestinal-Secretory Epithelial w/ UPR Stress Adapt."
+)
 
-if (file.exists(anno_strict_path)) {
-  label_strict <- read.csv(anno_strict_path, stringsAsFactors = FALSE)
-  strict <- left_join(strict, label_strict, by = "MP")
-} else {
-  strict$top_3ca_noncc <- NA_character_
-}
+# T2T4 LOW PROGRAMS
+mp_t2t4_low <- c(
+  "MP2"   = "Chromatin-Nucleosome Assembly",
+  "MP29"  = "Proliferative G2-M Mitotic",
+  "MP41"  = "Metaphase-Kinetochore & Chromosome Segregation",
+  "MP55"  = "Proliferative Epithelial Mitotic",
+  "MP57"  = "Proliferative Mitotic w/ Plasticity Features",
+  "MP113" = "E2F-Associated Proliferative Mitotic",
+  "MP116" = "Differentiated Intestinal Epithelial-Transport",
+  "MP59"  = "Proliferative Mitotic w/ Plasticity Context"
+)
+
+# Combine for lookup
+mp_all_interpretations <- c(mp_t2t4_high, mp_t2t4_low)
+
 strict <- strict %>%
   mutate(
-    top_3ca_noncc = ifelse(is.na(top_3ca_noncc) | top_3ca_noncc == "", "3CA:no_nonCC_hit", top_3ca_noncc),
-    display_label = paste0(MP, " - ", top_3ca_noncc)
+    display_label = ifelse(MP %in% names(mp_all_interpretations), 
+                           paste0(MP, " - ", mp_all_interpretations[MP]),
+                           paste0(MP, " - Unknown"))
   )
 
-if (file.exists(anno_t2t4_path)) {
-  label_t2t4 <- read.csv(anno_t2t4_path, stringsAsFactors = FALSE)
-  t2t4 <- left_join(t2t4, label_t2t4, by = "MP")
-} else {
-  t2t4$top_3ca_noncc <- NA_character_
-}
 t2t4 <- t2t4 %>%
   mutate(
-    top_3ca_noncc = ifelse(is.na(top_3ca_noncc) | top_3ca_noncc == "", "3CA:no_nonCC_hit", top_3ca_noncc),
-    display_label = paste0(MP, " - ", top_3ca_noncc)
+    display_label = ifelse(MP %in% names(mp_all_interpretations), 
+                           paste0(MP, " - ", mp_all_interpretations[MP]),
+                           paste0(MP, " - Unknown"))
   )
 
 label_map <- setNames(c(strict$display_label, t2t4$display_label), c(strict$MP, t2t4$MP))
@@ -90,7 +121,7 @@ names(source_group) <- retained_mps
 ha <- HeatmapAnnotation(
   Group = source_group,
   col = list(Group = c("T2/T4 High" = "#E41A1C", "Decrease/Consistent" = "#377EB8")),
-  show_legend = TRUE,
+  show_legend = FALSE,
   annotation_legend_param = list(Group = list(title = "Trend Origin", title_gp = gpar(fontface = "bold")))
 )
 
@@ -191,9 +222,10 @@ ht_cor <- Heatmap(
   column_title_gp = gpar(fontsize = 16, fontface = "bold"),
   row_names_side = "right",
   column_names_side = "bottom",
-  column_names_rot = 30,
-  row_names_gp = gpar(fontsize = 8, fontface = "bold"),
-  column_names_gp = gpar(fontsize = 8, fontface = "bold"),
+  column_labels = retained_mps,
+  column_names_rot = 90,
+  row_names_gp = gpar(fontsize = 12, fontface = "bold"),
+  column_names_gp = gpar(fontsize = 12, fontface = "bold"),
   width = unit(10.5, "inch"),
   height = unit(10.5, "inch"),
   cell_fun = function(j, i, x, y, width, height, fill) {
@@ -293,9 +325,10 @@ ht_jaccard <- Heatmap(
   left_annotation = row_ha,
   show_row_names = TRUE,
   show_column_names = TRUE,
-  column_names_rot = 30,
-  row_names_gp = gpar(fontsize = 8),
-  column_names_gp = gpar(fontsize = 8),
+  column_labels = retained_mps,
+  column_names_rot = 90,
+  row_names_gp = gpar(fontsize = 12),
+  column_names_gp = gpar(fontsize = 12),
   column_title = paste0("Centred MP Gene List Similarity (n = ", n_mps, ")"),
   column_title_gp = gpar(fontsize = 16, fontface = "bold"),
   use_raster = TRUE,
@@ -322,4 +355,86 @@ png(png_path_jaccard, width = 17.5, height = 12.8, units = "in", res = 450, bg =
 draw(ht_jaccard, heatmap_legend_side = "bottom", padding = unit(c(12, 10, 14, 10), "mm"))
 dev.off()
 
-cat("Finished generating heatmaps.\n")
+#####################################################################
+# 6. Generate Expression Correlation Heatmap (T4 Only)
+#####################################################################
+cat("Generating Correlation Heatmap (T4 Only)...\n")
+
+if ("T4" %in% samples) {
+  cor_t4 <- cor_array[, , "T4"]
+  z_t4 <- atanh(pmin(pmax(cor_t4, -0.999), 0.999))
+  
+  mean_rho_t4 <- matrix(NA_real_, n_mps, n_mps, dimnames = list(retained_mps, retained_mps))
+  
+  for (i in seq_len(n_mps)) {
+    for (j in seq_len(n_mps)) {
+      if (i == j) {
+        mean_rho_t4[i, j] <- 1
+        next
+      }
+      z_val <- z_t4[i, j]
+      if (is.finite(z_val)) {
+        mean_rho_t4[i, j] <- tanh(z_val)
+      }
+    }
+  }
+  
+  rownames(mean_rho_t4) <- mp_labels[rownames(mean_rho_t4)]
+  colnames(mean_rho_t4) <- mp_labels[colnames(mean_rho_t4)]
+  
+  ht_cor_t4 <- Heatmap(
+    mean_rho_t4,
+    name = "T4 Rho",
+    col = col_cor,
+    rect_gp = gpar(col = "white", lwd = 1),
+    cluster_rows = TRUE,
+    cluster_columns = TRUE,
+    row_split = source_group,
+    column_split = source_group,
+    cluster_row_slices = FALSE,
+    cluster_column_slices = FALSE,
+    clustering_method_rows = "ward.D2",
+    clustering_method_columns = "ward.D2",
+    top_annotation = ha,
+    left_annotation = row_ha,
+    column_title = paste0("Centred MP Expression Correlation (n = ", n_mps, ", T4 Cells Only)"),
+    column_title_gp = gpar(fontsize = 16, fontface = "bold"),
+    row_names_side = "right",
+    column_names_side = "bottom",
+    column_labels = retained_mps,
+    column_names_rot = 90,
+    row_names_gp = gpar(fontsize = 12, fontface = "bold"),
+    column_names_gp = gpar(fontsize = 12, fontface = "bold"),
+    width = unit(10.5, "inch"),
+    height = unit(10.5, "inch"),
+    cell_fun = function(j, i, x, y, width, height, fill) {
+      rho <- mean_rho_t4[i, j]
+      if (is.na(rho)) {
+        grid.text("NA", x, y, gp = gpar(fontsize = 6, col = "grey50"))
+      } else {
+        grid.text(round(rho, 2), x, y, gp = gpar(fontsize = 6))
+      }
+    },
+    heatmap_legend_param = list(
+      title_gp = gpar(fontsize = 16, fontface = "bold"),
+      labels_gp = gpar(fontsize = 14)
+    )
+  )
+  
+  cor_t4_pdf_path <- file.path(live_outdir, "centred_highres_mp_correlation_heatmap_T4_only.pdf")
+  cor_t4_png_path <- file.path(live_outdir, "centred_highres_mp_correlation_heatmap_T4_only.png")
+  
+  cairo_pdf(cor_t4_pdf_path, width = 23.5, height = 18)
+  ht_cor_t4_drawn <- draw(ht_cor_t4, heatmap_legend_side = "left", padding = unit(c(20, 20, 20, 20), "mm"))
+  dev.off()
+  
+  png(cor_t4_png_path, width = 23.5, height = 18, units = "in", res = 350, bg = "white")
+  draw(ht_cor_t4_drawn, heatmap_legend_side = "left", padding = unit(c(20, 20, 20, 20), "mm"))
+  dev.off()
+  
+  cat("Finished generating T4 Only heatmaps.\n")
+} else {
+  cat("T4 sample not found in UCell scores.\n")
+}
+
+cat("Finished generating all heatmaps.\n")

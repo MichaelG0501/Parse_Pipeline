@@ -22,6 +22,7 @@
 #   parse_outs/cell_states/timepoint_scenic/tables/*network_edges.csv
 #   parse_outs/cell_states/timepoint_scenic/tables/*regulon_targets.csv
 #   parse_outs/cell_states/timepoint_scenic/figures/*regulon_heatmap.pdf
+#   parse_outs/cell_states/timepoint_scenic/figures/*regulon_heatmap_T0_T4_eR4.pdf
 #   parse_outs/cell_states/timepoint_scenic/figures/*network.pdf
 #   parse_outs/cell_states/timepoint_scenic/figures/*overlap*.pdf
 #   parse_outs/logs/run_summaries/parse_timepoint_scenic_regulons_<timestamp>.txt
@@ -663,6 +664,91 @@ run_scenic_for_cells <- function(counts_mat,
   grDevices::dev.off()
   ####################
 
+  ####################
+  # T0, T4, eR4 subset gap heatmap (2 pages)
+  ####################
+  subset_labels <- c("T0", "T4", "eR4")
+  subset_gap_df <- balanced_gap_df |> dplyr::filter(selected_timepoint %in% subset_labels)
+  if (nrow(subset_gap_df) > 0) {
+    # Common Row Setup
+    subset_gap_mat <- balanced_gap_mat[subset_gap_df$regulon, , drop = FALSE]
+    subset_gap_row_split <- factor(as.character(subset_gap_df$selected_timepoint), levels = subset_labels)
+    row_names_str <- paste0(subset_gap_df$regulon_label, " [", subset_gap_df$selected_timepoint, "]")
+    
+    # PAGE 1: Columns subsetted to T0, T4, eR4
+    subset_col_mat <- subset_gap_mat[, subset_labels, drop = FALSE]
+    subset_col_scaled <- t(scale(t(subset_col_mat)))
+    subset_col_scaled[!is.finite(subset_col_scaled)] <- 0
+    rownames(subset_col_scaled) <- row_names_str
+    
+    annotation_df_p1 <- data.frame(Timepoint = factor(subset_labels, levels = subset_labels))
+    rownames(annotation_df_p1) <- subset_labels
+    ha_cols_p1 <- ComplexHeatmap::HeatmapAnnotation(
+      df = annotation_df_p1,
+      col = list(Timepoint = label_colours[subset_labels]),
+      show_annotation_name = FALSE
+    )
+    
+    ht_p1 <- ComplexHeatmap::Heatmap(
+      subset_col_scaled,
+      name = "Scaled RSS",
+      col = rss_col_fun,
+      top_annotation = ha_cols_p1,
+      cluster_rows = FALSE,
+      cluster_columns = FALSE,
+      show_column_dend = FALSE,
+      row_split = subset_gap_row_split,
+      row_title_rot = 0,
+      row_names_side = "left",
+      row_names_gp = grid::gpar(fontsize = 10),
+      column_names_gp = grid::gpar(fontsize = 10),
+      column_names_rot = 45,
+      heatmap_legend_param = list(title = "Scaled RSS")
+    )
+    
+    # PAGE 2: All columns
+    all_col_mat <- subset_gap_mat[, label_order, drop = FALSE]
+    all_col_scaled <- t(scale(t(all_col_mat)))
+    all_col_scaled[!is.finite(all_col_scaled)] <- 0
+    rownames(all_col_scaled) <- row_names_str
+    
+    annotation_df_p2 <- data.frame(Timepoint = factor(label_order, levels = label_order))
+    rownames(annotation_df_p2) <- label_order
+    ha_cols_p2 <- ComplexHeatmap::HeatmapAnnotation(
+      df = annotation_df_p2,
+      col = list(Timepoint = label_colours[label_order]),
+      show_annotation_name = FALSE
+    )
+    
+    ht_p2 <- ComplexHeatmap::Heatmap(
+      all_col_scaled,
+      name = "Scaled RSS",
+      col = rss_col_fun,
+      top_annotation = ha_cols_p2,
+      cluster_rows = FALSE,
+      cluster_columns = FALSE,
+      show_column_dend = FALSE,
+      row_split = subset_gap_row_split,
+      row_split = subset_gap_row_split,
+      row_title_rot = 0,
+      row_names_side = "left",
+      row_names_gp = grid::gpar(fontsize = 10),
+      column_names_gp = grid::gpar(fontsize = 10),
+      column_names_rot = 45,
+      heatmap_legend_param = list(title = "Scaled RSS")
+    )
+    
+    # Write to PDF
+    grDevices::pdf(file.path(tiers$figures, paste0(out_prefix, "_balanced", balanced_n, "_top20_gap_regulon_heatmap_T0_T4_eR4.pdf")), width = 12, height = 10, useDingbats = FALSE)
+    
+    # Page 1
+    ComplexHeatmap::draw(ht_p1, merge_legend = TRUE, heatmap_legend_side = "right", annotation_legend_side = "right")
+    
+    # Page 2
+    ComplexHeatmap::draw(ht_p2, merge_legend = TRUE, heatmap_legend_side = "right", annotation_legend_side = "right")
+    
+    grDevices::dev.off()
+  }
 
   edge_df <- dplyr::bind_rows(lapply(label_order, function(label) {
     vals <- sort(rss_mat[, label], decreasing = TRUE)
@@ -919,6 +1005,7 @@ if (run_mode == "combined") {
     file.path(tiers$figures, "combined_timepoint_top20_specific_regulon_heatmap.pdf"),
     file.path(tiers$figures, "combined_timepoint_balanced2600_top20_specific_regulon_heatmap.pdf"),
     file.path(tiers$figures, "combined_timepoint_balanced2600_top20_gap_regulon_heatmap.pdf"),
+    file.path(tiers$figures, "combined_timepoint_balanced2600_top20_gap_regulon_heatmap_T0_T4_eR4.pdf"),
     file.path(tiers$figures, "combined_timepoint_network.pdf")
   )
 }

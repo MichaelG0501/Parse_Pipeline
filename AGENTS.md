@@ -7,7 +7,7 @@ Parse Biosciences single-cell RNA-seq QC and analysis pipeline for OAC (Oesophag
 ```
 data/                — Raw FASTQ deliveries and filtered count matrices (symlinked)
 tools/               — External pipelines and utilities (Parse splitpipe, velocity, trailmaker)
-analysis/            — Downstream analysis R scripts organized by topic
+analysis/            — Downstream analysis and tracked essential setup scripts organized by topic
   common/            — Shared config, constants, helpers, logging
   input_preparation/ — Input conversion utilities for extra datasets
   cell_states/       — State assignment, abundance, activity reports
@@ -17,8 +17,9 @@ analysis/            — Downstream analysis R scripts organized by topic
   plotting/          — QC heatmaps, plotting utilities
   summary/           — Cross-sample summary statistics
   trajectory/        — Pseudotime and RNA velocity workflows
-parse_outs/          — All pipeline outputs
-temp/                — PBS stdout/stderr logs
+job_scripts/         — Local submission-only wrappers mirroring analysis/ (gitignored)
+parse_outs/          — Scientific pipeline outputs
+temp/                — Historical logs; new PBS stdout/stderr go in the project root
 AGENTS.md            — Workspace rules and execution guidance
 ```
 
@@ -56,7 +57,7 @@ AGENTS.md            — Workspace rules and execution guidance
 
 ## Build / Run / Test Commands
 
-There is no build system, linter, or test suite. All execution is via PBS `qsub`.
+There is no build system, linter, or test suite. All execution is via PBS `qsub`. The root-level commands below document existing entry points; new or revised analysis-only launchers follow the `job_scripts/` policy below.
 
 ```bash
 # Step 1 — QC pipeline
@@ -102,7 +103,7 @@ source activate /rds/general/user/sg3723/home/anaconda3/envs/gnmf
 
 These rules are **mandatory** for any agent operating in this repo:
 
-1. **Working directory**: All outputs go to `parse_outs/`. Never write outside project paths.
+1. **Working directory**: Scientific outputs go to `parse_outs/`; scheduler stdout/stderr go directly in the project root. Never write outside project paths.
 2. **Conda init**: Always run `eval "$(~/miniforge3/bin/conda shell.bash hook)"` before activating envs.
 3. **No Heavy Workloads on Login Nodes (MANDATORY)**: Strictly prohibit running any computationally, memory, or IO intensive workloads on the login nodes, as it adversely affects other users. Any even slightly larger workloads MUST be submitted to the batch queue via PBS `qsub`.
 4. **PBS required**: All analytical and heavy tasks → must create PBS `.sh` script with `#PBS` resource headers and submit to the queue. Interactive scripts on login nodes are only permitted for very light, trivial tasks.
@@ -137,6 +138,18 @@ These rules are **mandatory** for any agent operating in this repo:
     ```
 17. **Strictly forbid fallbacks**: Must use only the first and best option for any analysis. If not available or if it fails, the script should stop immediately.
 
+####################
+## Analysis job scripts and PBS logs
+
+- Store every new submission-only shell wrapper for an R script under `analysis/` in the project-root `job_scripts/` directory. Create the directory and required subdirectories when needed. Mirror the R script's path relative to `analysis/` and keep its exact basename, replacing `.R` with `.sh`: `analysis/cell_states/example.R` uses `job_scripts/cell_states/example.sh`. Preserve deeper nesting. Do not create submission-only wrappers inside `analysis/`.
+- Before running or rerunning an analysis, first check that matching `job_scripts/` path. Reuse the existing launcher after checking its R command, arguments, environment, resources, and log destinations; update it there when needed. If it is absent, create it at that exact path rather than inventing another name. This basename rule takes precedence over generic shell-file naming prefixes.
+- Keep these launchers minimal: PBS directives, timestamps, standard module/conda activation, a change to the project root, and the R invocation. Record the resource requirements, environment, arguments, and run command in the R script's registry so the launcher can be recreated. Keep analytical logic in R; it must run directly on an allocated compute node without reading or depending on the launcher.
+- Submit from the project root, using the wrapper's `job_scripts/...` path, and change to that same root inside the job. Use `#PBS -koed` for live logging and explicit absolute `#PBS -o <project_root>/` and `#PBS -e <project_root>/` destinations. PBS stdout/stderr belong directly in the project root, alongside `analysis/` and `job_scripts/`; never place them in `analysis/`, `job_scripts/`, or an analysis output/log subdirectory. This rule concerns scheduler stdout/stderr; R-generated scientific logs and reports may still use the documented output tiers.
+- Ignore `/job_scripts/` in the project's `.gitignore`. These launchers are local, reconstructable execution aids and should not be staged or committed. Keep project-root PBS stdout/stderr untracked as well.
+- Essential shell scripts that implement nontrivial environment/tool installation, required input preparation, Python/helper orchestration, or other indispensable workflow logic must remain in the appropriate `analysis/` subdirectory, tracked by Git and maintained with the analysis. For example, scRef's `analysis/cell_states/Auto_drug_reversal/Auto_setup_drug_reversal_env.sh` is an essential setup script. Standard module/conda activation alone is not an exception. Do not hide indispensable logic or helper scripts solely in ignored `job_scripts/`; a disposable launcher may call a tracked essential script.
+- This policy governs future launcher creation and updates. Existing pipeline entry points and historical wrappers are not automatically moved, deleted, or renamed; migrate them only as part of an explicitly scoped change.
+####################
+
 ### PBS Job Template
 ```bash
 #!/bin/bash
@@ -144,14 +157,16 @@ These rules are **mandatory** for any agent operating in this repo:
 #PBS -l walltime=<HH:MM:SS>
 #PBS -N <jobname>
 #PBS -koed
+#PBS -o /rds/general/project/spatialtranscriptomics/live/Parse_Pipeline/
+#PBS -e /rds/general/project/spatialtranscriptomics/live/Parse_Pipeline/
 echo $(date +%T)
 module purge
 module load tools/dev
 eval "$(~/miniforge3/bin/conda shell.bash hook)"
 source activate /rds/general/user/sg3723/home/anaconda3/envs/dmtcp
 WD=/rds/general/project/spatialtranscriptomics/live/Parse_Pipeline
-cd $WD
-Rscript <script>.R
+cd "$WD"
+Rscript "analysis/<subdirectory>/<script>.R"
 echo $(date +%T)
 ```
 
@@ -331,7 +346,7 @@ Key scripts in `analysis/trajectory/`:
 ## Directory Migration Notes
 
 This workspace was previously nested under an `Auto_parse_qc_pipeline/` directory. It has now been flattened and fully reorganized:
-- All `.sh` and `.pbs` submission scripts reside in the project root.
+- Historical `.sh` and `.pbs` submission scripts were placed in the project root. New submission-only wrappers for analysis R scripts follow the `job_scripts/` policy above; essential tracked setup/workflow shell scripts stay under `analysis/`.
 - All downstream analysis scripts (R and Python) reside in `analysis/` subdirectories.
 - All pipeline outputs reside directly in `parse_outs/`.
 - Job log files (`.o` and `.e`) are gathered in the project root.

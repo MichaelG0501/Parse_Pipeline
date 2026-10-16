@@ -86,10 +86,7 @@ find_existing_dir <- function(candidates) {
   found[1]
 }
 
-uncentred_highres_dir <- find_existing_dir(c(
-  file.path(paths$parse_outs, "Auto_parse_highres_metaprogram_trends"),
-  file.path(paths$parse_outs, "parse_outs", "Auto_parse_highres_metaprogram_trends")
-))
+uncentred_highres_dir <- centred_highres_dir
 uncentred_t2t4_dir <- file.path(uncentred_highres_dir, "Auto_T2T4_gt_T0eR4_filter")
 
 get_nmp_from_geneNMF <- function(geneNMF_out_path) {
@@ -111,82 +108,97 @@ jaccard <- function(a, b) {
   length(intersect(a, b)) / union_n
 }
 
-increase_clusters <- list(
-  "EMT/Remodeling" = c("MP23", "MP46", "MP81"),
-  "Stress response" = c("MP13", "MP25"),
-  "Stem-like plasticity" = c("MP16"),
-  "G2/M" = c("MP36", "MP40", "MP78", "MP80", "MP94"),
-  "Epithelial differentiation" = c("MP72", "MP77"),
-  "Inflammatory-associated\n  mitotic program" = c("MP53", "MP89"),
-  "Proliferative with angiogenic\nremodeling/ plasticity" = c("MP92", "MP42", "MP98", "MP55"),
-  "Angiogenic / Inflammatory remodeling" = c("MP35")
+functional_groups_list <- list(
+  "pEMT / ECM remodelling / migratory plasticity" = c("MP48", "MP74", "MP83", "MP50", "MP60"),
+  "Stress response / metabolic adaptation"        = c("MP95", "MP30", "MP11"),
+  "ECM / niche / developmental plasticity"        = c("MP75", "MP16", "MP17"),
+  "G2/M / mitotic-stress programs"                = c("MP92", "MP82", "MP78"),
+  "Mitotic execution / proliferative programs"    = c("MP21", "MP96", "MP36"),
+  "Hybrid stress-G2/M programs"                   = c("MP40", "MP43"),
+  "Hybrid plasticity-mitotic programs"            = c("MP86", "MP53"),
+  "Hybrid lineage/stress-mitotic programs"        = c("MP49"),
+  "Mixed / transitional programs"                 = c("MP12", "MP109"),
+  "Lineage / inflammatory survivor identity"      = c("MP101", "MP9")
 )
 decrease_clusters <- list(
-  "Proliferation / DNA Replication" = c("MP3", "MP27", "MP29"),
-  "Epithelial Differentiation" = c("MP47")
+  "Hybrid cell proliferation with plasticity" = c("MP59"),
+  "Mitotic proliferation proliferation and chromosome segregation" = c("MP22", "MP29", "MP41", "MP113"),
+  "Hybrid cell proliferation with epithelial context" = c("MP55"),
+  "Epithelial differetniation" = c("MP116")
 )
-all_clusters <- c(increase_clusters, decrease_clusters)
+all_clusters <- c(functional_groups_list, decrease_clusters)
 cluster_direction <- c(
-  rep("Enriched in Persisters", length(increase_clusters)),
+  rep("Enriched in Persisters", length(functional_groups_list)),
   rep("Depleted in Persisters", length(decrease_clusters))
 )
 names(cluster_direction) <- names(all_clusters)
 
-build_uncentred_cluster_map <- function() {
+mp_all_interpretations <- c(
+  "MP43"  = "Drug-Tolerant Stress-Adapted & Cycling-Persister",
+  "MP95"  = "Stress-Adapted UPR-ISR w/ Metabolic & Redox Rewiring",
+  "MP101" = "Gastric Intestinal Metaplasia (IM) Lineage",
+  "MP75"  = "ECM-Interacting w/ Migration, Plasticity & Metabolic Adapt.",
+  "MP48"  = "Partial-EMT Mechanotransduction Persistent",
+  "MP109" = "Mixed Migratory-Mitotic Stress",
+  "MP16"  = "Senescent-Migratory w/ Autophagy",
+  "MP30"  = "Integrated Stress Response (ISR) & Metabolic Adapt.",
+  "MP40"  = "Stress-Adapted Cycling",
+  "MP12"  = "Integrated Stress-Adapted w/ Cycling & Secretion",
+  "MP11"  = "Canonical UPR-ISR Nutrient-Stress",
+  "MP92"  = "Mitotic Surveillance & Metaphase-Anaphase Transition",
+  "MP21"  = "Late-Treatment Cycling-Persister",
+  "MP53"  = "AURKA-PLK1 Late-Treatment Mitotic-Survival w/ Plasticity",
+  "MP78"  = "Cycling-Persister-Like Mitotic",
+  "MP74"  = "Partial-EMT-Like w/ Migration & ECM-Remodeling",
+  "MP83"  = "Inflammatory Migratory-Plasticity",
+  "MP50"  = "Wound Response & ECM Remodeling",
+  "MP9"   = "Inflammatory NF-kB Survival",
+  "MP82"  = "Cycling-Persister-Like",
+  "MP96"  = "G2-M Cycling-Persister-Like w/ Epithelial-Basal ID",
+  "MP60"  = "TGFb-EGFR Migratory-Plasticity w/ NF-kB Survival",
+  "MP86"  = "Proliferative Cycling pEMT-Like Hybrid",
+  "MP17"  = "IGF-ECM Developmental & Neural-Like Signalling Plasticity",
+  "MP36"  = "Cycling-Persister-Like w/ Plasticity",
+  "MP49"  = "Cycling Intestinal-Secretory Epithelial w/ UPR Stress Adapt.",
+  "MP2"   = "Chromatin-Nucleosome Assembly",
+  "MP29"  = "Proliferative G2-M Mitotic",
+  "MP41"  = "Metaphase-Kinetochore & Chromosome Segregation",
+  "MP55"  = "Proliferative Epithelial Mitotic",
+  "MP57"  = "Proliferative Mitotic w/ Plasticity Features",
+  "MP113" = "E2F-Associated Proliferative Mitotic",
+  "MP116" = "Differentiated Intestinal Epithelial-Transport",
+  "MP59"  = "Proliferative Mitotic w/ Plasticity Context"
+)
+
+build_centred_cluster_map <- function() {
   data.frame(
-    uncentred_MP = unname(unlist(all_clusters)),
+    centred_MP = unname(unlist(all_clusters)),
     Cluster = rep(names(all_clusters), lengths(all_clusters)),
     Direction = rep(cluster_direction[names(all_clusters)], lengths(all_clusters)),
     stringsAsFactors = FALSE
   ) |>
-    dplyr::distinct(uncentred_MP, .keep_all = TRUE)
+    dplyr::distinct(centred_MP, .keep_all = TRUE)
 }
 
 make_best_match_annotations <- function() {
-  centred_genes_path <- file.path(centred_t2t4_dir, paste0("Auto_parse_highres_T2T4_selected_mp_genes_nMP", nMP, ".rds"))
-  uncentred_genes_path <- file.path(uncentred_t2t4_dir, paste0("Auto_parse_highres_T2T4_selected_mp_genes_nMP", nMP, ".rds"))
-  centred_label_path <- file.path(centred_t2t4_dir, paste0("Auto_parse_highres_T2T4_top_3CA_noncellcycle_nMP", nMP, ".csv"))
-  centred_trend_path <- file.path(centred_t2t4_dir, paste0("Auto_parse_highres_T2T4_filter_summary_nMP", nMP, ".csv"))
-  missing <- c(centred_genes_path, uncentred_genes_path, centred_label_path, centred_trend_path)[
-    !file.exists(c(centred_genes_path, uncentred_genes_path, centred_label_path, centred_trend_path))
-  ]
-  if (length(missing) > 0) stop("Missing T2/T4 best-match inputs: ", paste(missing, collapse = ", "))
-
-  centred_genes <- readRDS(centred_genes_path)
-  uncentred_genes <- readRDS(uncentred_genes_path)
+  centred_label_path <- file.path(centred_highres_dir, paste0("Auto_parse_highres_top_3CA_noncellcycle_nMP", nMP, ".csv"))
+  if (!file.exists(centred_label_path)) stop("Missing 3CA labels: ", centred_label_path)
+  
   label_table <- read.csv(centred_label_path, check.names = FALSE, stringsAsFactors = FALSE)
-  trend_summary <- read.csv(centred_trend_path, check.names = FALSE, stringsAsFactors = FALSE)
-  retained <- trend_summary$MP[trend_summary$retained == TRUE | trend_summary$retained == "TRUE"]
-  centred_genes <- centred_genes[intersect(retained, names(centred_genes))]
-
-  pairwise <- expand.grid(
-    centred_MP = names(centred_genes),
-    uncentred_MP = names(uncentred_genes),
-    stringsAsFactors = FALSE
-  ) |>
-    dplyr::rowwise() |>
-    dplyr::mutate(
-      overlap_genes = length(intersect(centred_genes[[centred_MP]], uncentred_genes[[uncentred_MP]])),
-      centred_gene_count = length(centred_genes[[centred_MP]]),
-      uncentred_gene_count = length(uncentred_genes[[uncentred_MP]]),
-      jaccard = jaccard(centred_genes[[centred_MP]], uncentred_genes[[uncentred_MP]])
-    ) |>
-    dplyr::ungroup()
-
-  cluster_map <- build_uncentred_cluster_map()
-  best <- pairwise |>
-    dplyr::arrange(centred_MP, dplyr::desc(jaccard), dplyr::desc(overlap_genes), uncentred_MP) |>
-    dplyr::group_by(centred_MP) |>
-    dplyr::slice_head(n = 1) |>
-    dplyr::ungroup() |>
-    dplyr::left_join(cluster_map, by = "uncentred_MP") |>
+  
+  cluster_map <- build_centred_cluster_map()
+  
+  best <- data.frame(centred_MP = label_table$MP, stringsAsFactors = FALSE) |>
+    dplyr::left_join(cluster_map, by = "centred_MP") |>
     dplyr::left_join(label_table[, c("MP", "top_3ca_noncc", "top_3ca_noncc_p_adj")], by = c("centred_MP" = "MP")) |>
     dplyr::mutate(
       top_3ca_noncc = ifelse(is.na(top_3ca_noncc) | top_3ca_noncc == "", "3CA:no_nonCC_hit", top_3ca_noncc),
       Cluster = ifelse(is.na(Cluster) | Cluster == "", paste0("Best 3CA: ", top_3ca_noncc), Cluster),
-      Direction = ifelse(is.na(Direction) | Direction == "", "Enriched in Persisters", Direction),
-      display_label = paste0(centred_MP, "\nbest:", uncentred_MP),
-      annotation_label = paste0(centred_MP, " best:", uncentred_MP, " ", top_3ca_noncc)
+      Direction = ifelse(is.na(Direction) | Direction == "", "Other", Direction),
+      display_label = centred_MP,
+      annotation_label = ifelse(!is.na(mp_all_interpretations[centred_MP]), 
+                                paste0(centred_MP, ": ", mp_all_interpretations[centred_MP]), 
+                                paste0(centred_MP, " ", top_3ca_noncc))
     )
   write.csv(best, file.path(best_match_table_dir, "centred_T2T4_best_match_annotations.csv"), row.names = FALSE)
   best
@@ -267,9 +279,9 @@ plot_similarity_heatmap <- function() {
 }
 
 load_ucell_and_states <- function() {
-  ucell_path <- file.path(centred_t2t4_dir, paste0("Auto_parse_highres_T2T4_UCell_scores_nMP", nMP, ".rds"))
+  ucell_path <- file.path(centred_highres_dir, paste0("Auto_parse_highres_UCell_scores_nMP", nMP, ".rds"))
   states_path <- file.path(paths$parse_outs, "cell_states", "Auto_parse_PDOpipeline_topmp_assignments.rds")
-  if (!file.exists(ucell_path)) stop("Missing centred T2/T4 UCell scores: ", ucell_path)
+  if (!file.exists(ucell_path)) stop("Missing centred UCell scores: ", ucell_path)
   if (!file.exists(states_path)) stop("Missing state assignment file: ", states_path)
   ucell <- readRDS(ucell_path)
   rownames(ucell) <- sub("^([A-Za-z0-9]+)_", "\\1__", rownames(ucell))
@@ -381,15 +393,15 @@ plot_delta_heatmap <- function() {
       col = col_f,
       cluster_rows = FALSE,
       cluster_columns = FALSE,
-      row_names_gp = gpar(fontsize = 8, fontface = "bold", fontfamily = "Arial"),
+      row_names_gp = gpar(fontsize = 10, fontface = "bold", fontfamily = "Arial"),
       row_labels = row_labels[rownames(mat)],
-      column_names_gp = gpar(fontsize = 8, fontface = "bold", fontfamily = "Arial"),
+      column_names_gp = gpar(fontsize = 10, fontface = "bold", fontfamily = "Arial"),
       column_labels = paste0("\n", state_labels_split[colnames(mat)]),
       column_names_rot = 0,
       column_names_centered = TRUE,
       row_split = row_split_fac,
       row_title_rot = 0,
-      row_title_gp = gpar(fontsize = 8, fontface = "bold", fontfamily = "Arial"),
+      row_title_gp = gpar(fontsize = 10, fontface = "bold", fontfamily = "Arial"),
       row_gap = unit(3, "mm"),
       cell_fun = cell_f,
       left_annotation = ha_row,
@@ -405,25 +417,21 @@ plot_delta_heatmap <- function() {
 
   ht_inc <- create_mp_ht(mp_mean_delta |> dplyr::filter(Direction == "Enriched in Persisters"), "Increased in T2/T4")
   ht_dec <- create_mp_ht(mp_mean_delta |> dplyr::filter(Direction == "Depleted in Persisters"), "Decreased in T2/T4")
+  ht_list <- NULL
+  if (!is.null(ht_inc)) ht_list <- ht_inc
+  if (!is.null(ht_dec)) {
+    if (is.null(ht_list)) ht_list <- ht_dec else ht_list <- ht_list %v% ht_dec
+  }
+
   pdf_path <- file.path(fig_dir, "t2t4_vs_t0er4_parse_mps_delta_heatmap.pdf")
   png_path <- file.path(fig_dir, "t2t4_vs_t0er4_parse_mps_delta_heatmap.png")
-  grDevices::cairo_pdf(pdf_path, width = 450 / 25.4, height = 200 / 25.4, family = "Arial")
-  pushViewport(viewport(layout = grid.layout(nr = 1, nc = 2)))
-  pushViewport(viewport(layout.pos.row = 1, layout.pos.col = 1))
-  if (!is.null(ht_inc)) draw(ht_inc, newpage = FALSE, heatmap_legend_side = "bottom")
-  popViewport()
-  pushViewport(viewport(layout.pos.row = 1, layout.pos.col = 2))
-  if (!is.null(ht_dec)) draw(ht_dec, newpage = FALSE, heatmap_legend_side = "bottom")
-  popViewport()
+
+  grDevices::cairo_pdf(pdf_path, width = 300 / 25.4, height = 400 / 25.4, family = "Arial")
+  if (!is.null(ht_list)) draw(ht_list, newpage = TRUE, heatmap_legend_side = "bottom")
   dev.off()
-  png(png_path, width = 450, height = 200, units = "mm", res = 600, type = "cairo")
-  pushViewport(viewport(layout = grid.layout(nr = 1, nc = 2)))
-  pushViewport(viewport(layout.pos.row = 1, layout.pos.col = 1))
-  if (!is.null(ht_inc)) draw(ht_inc, newpage = FALSE, heatmap_legend_side = "bottom")
-  popViewport()
-  pushViewport(viewport(layout.pos.row = 1, layout.pos.col = 2))
-  if (!is.null(ht_dec)) draw(ht_dec, newpage = FALSE, heatmap_legend_side = "bottom")
-  popViewport()
+
+  png(png_path, width = 300, height = 400, units = "mm", res = 600, type = "cairo")
+  if (!is.null(ht_list)) draw(ht_list, newpage = TRUE, heatmap_legend_side = "bottom")
   dev.off()
 }
 
@@ -485,14 +493,14 @@ plot_timepoint_heatmap <- function() {
       col = col_f,
       cluster_rows = FALSE,
       cluster_columns = FALSE,
-      row_names_gp = gpar(fontsize = 8, fontface = "bold", fontfamily = "Arial"),
+      row_names_gp = gpar(fontsize = 10, fontface = "bold", fontfamily = "Arial"),
       row_labels = row_labels[rownames(mat_z)],
-      column_names_gp = gpar(fontsize = 9, fontface = "bold", fontfamily = "Arial"),
+      column_names_gp = gpar(fontsize = 10, fontface = "bold", fontfamily = "Arial"),
       column_names_rot = 0,
       column_names_centered = TRUE,
       row_split = row_split_fac,
       row_title_rot = 0,
-      row_title_gp = gpar(fontsize = 8, fontface = "bold", fontfamily = "Arial"),
+      row_title_gp = gpar(fontsize = 10, fontface = "bold", fontfamily = "Arial"),
       row_gap = unit(3, "mm"),
       cell_fun = cell_f,
       left_annotation = ha_row,
@@ -507,25 +515,22 @@ plot_timepoint_heatmap <- function() {
   }
   ht_inc <- create_mp_ht(mp_mean_matrix |> dplyr::filter(Direction == "Enriched in Persisters"), "Enriched in Persisters")
   ht_dec <- create_mp_ht(mp_mean_matrix |> dplyr::filter(Direction == "Depleted in Persisters"), "Depleted in Persisters")
+
+  ht_list <- NULL
+  if (!is.null(ht_inc)) ht_list <- ht_inc
+  if (!is.null(ht_dec)) {
+    if (is.null(ht_list)) ht_list <- ht_dec else ht_list <- ht_list %v% ht_dec
+  }
+
   pdf_path <- file.path(fig_dir, "timepoint_parse_mps_heatmap.pdf")
   png_path <- file.path(fig_dir, "timepoint_parse_mps_heatmap.png")
-  grDevices::cairo_pdf(pdf_path, width = 450 / 25.4, height = 200 / 25.4, family = "Arial")
-  pushViewport(viewport(layout = grid.layout(nr = 1, nc = 2)))
-  pushViewport(viewport(layout.pos.row = 1, layout.pos.col = 1))
-  if (!is.null(ht_inc)) draw(ht_inc, newpage = FALSE, heatmap_legend_side = "bottom")
-  popViewport()
-  pushViewport(viewport(layout.pos.row = 1, layout.pos.col = 2))
-  if (!is.null(ht_dec)) draw(ht_dec, newpage = FALSE, heatmap_legend_side = "bottom")
-  popViewport()
+
+  grDevices::cairo_pdf(pdf_path, width = 300 / 25.4, height = 400 / 25.4, family = "Arial")
+  if (!is.null(ht_list)) draw(ht_list, newpage = TRUE, heatmap_legend_side = "bottom")
   dev.off()
-  png(png_path, width = 450, height = 200, units = "mm", res = 600, type = "cairo")
-  pushViewport(viewport(layout = grid.layout(nr = 1, nc = 2)))
-  pushViewport(viewport(layout.pos.row = 1, layout.pos.col = 1))
-  if (!is.null(ht_inc)) draw(ht_inc, newpage = FALSE, heatmap_legend_side = "bottom")
-  popViewport()
-  pushViewport(viewport(layout.pos.row = 1, layout.pos.col = 2))
-  if (!is.null(ht_dec)) draw(ht_dec, newpage = FALSE, heatmap_legend_side = "bottom")
-  popViewport()
+
+  png(png_path, width = 300, height = 400, units = "mm", res = 600, type = "cairo")
+  if (!is.null(ht_list)) draw(ht_list, newpage = TRUE, heatmap_legend_side = "bottom")
   dev.off()
 }
 
