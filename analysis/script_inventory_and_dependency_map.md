@@ -188,3 +188,19 @@ Existing scripts may retain legacy output locations, but their headers and metho
 - Main outputs live under `parse_outs/centred/` with high-resolution trend, T2/T4-high filter, publication figure, comparison table, figure, and report subdirectories.
 - The workflow compares centred `multiNMF(center = TRUE)` retained MPs against existing uncentred retained MPs by gene-set Jaccard best match and automatic top 3CA non-cell-cycle annotation agreement. The high-resolution nMP is computed as half of the total NMF programmes from `T0`, `T1`, `T2`, `T4`, `R4`, and `eR4` (currently 234 / 2 = nMP117), not from the external PDO nMP156 object. It is terminal comparison work and does not replace canonical uncentred Parse MPs.
 ####################
+
+####################
+## Candidate pEMT validation and continuous T4 associations
+
+- Terminal script: `metaprograms/centred/parse_centred_candidate_pemt_validation.R`.
+- Methodology: `methodology/metaprograms/centred/candidate_pemt_validation_methodology.md`.
+- Depends on the centred nMP117 T2/T4 score/signature/metadata outputs, candidate workbook and six final sample RNA objects for initial analysis. Plot-only modes use the persistent live `parse_outs/centred/candidate_pemt_validation/intermediate/candidate_pemt_replot_bundle.rds` alone.
+- Current output tiers: intermediate, tables, figures/Auto_final, figures/Auto_supporting and reports under `parse_outs/centred/candidate_pemt_validation/`; run logs use the shared run-summary directory.
+- Figure 04 is one two-page current PDF: categorical T4 high/low expression differences, followed by continuous Spearman gene–MP association with the tested gene removed from MP signatures. Pairwise and per-gene summary CSV files accompany the figure.
+- `--mode=figure4` refreshes only Figure 04 and its association outputs. Local ignored launcher: `job_scripts/metaprograms/centred/parse_centred_candidate_pemt_validation.sh`; gnmf, 4 CPUs, 48 GB, 04:00:00.
+- Terminal analysis; no downstream consumers or temporary-tool dependencies.
+####################
+
+####################
+The candidate pEMT workflow's supporting per-cell scatter collection is `parse_outs/centred/candidate_pemt_validation/figures/Auto_supporting/T4_candidate_per_cell_pemt_scatter.pdf`. It has one page per candidate, with all eight MPs per page, all T4 cells, leave-one-gene-out scores and descriptive decile means. `--mode=scatter` uses the existing live bundle without upstream scoring. The page index and bin means are persistent tables; no new script or downstream dependency is introduced.
+####################

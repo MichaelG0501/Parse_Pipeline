@@ -32,5 +32,5 @@ __pycache__/
 /job_scripts/
 
 # PBS live stdout/stderr written directly in the project root
-/*.OU
-/*.ER
+*.OU
+*.ER

@@ -116,7 +116,7 @@ These rules are **mandatory** for any agent operating in this repo:
    ####################
    ```
 8. **No deleting/modifying** existing lines outside 20-hash blocks without permission.
-9. **Test scripts**: Name `delete_<desc>.R` and delete immediately after use.
+9. **Test scripts**: Follow the shared temporary-tool policy below. Retain checks outside `analysis/`; delete only with explicit user permission.
 10. **Max concurrent PBS jobs**: 46 (throttled via `while [[ $(qstat | grep sg3723 | wc -l) -gt 46 ]]`).
 11. **Script headers**: Every persistent script must start with a 20-hash header documenting description, exact inputs, exact outputs, cache/replot behavior for expensive workflows, methodology file path, and downstream status.
 12. **Methodology docs**: Every active or legacy script must have a methodology file under `analysis/methodology/<matching_subfolder>/`. Update `analysis/script_inventory_and_dependency_map.md` when scripts move, change dependencies, or become legacy/delete candidates.
@@ -137,6 +137,37 @@ These rules are **mandatory** for any agent operating in this repo:
     saveRDS(obj, file.path(outdir_live, "filename.rds"))        # persistent
     ```
 17. **Strictly forbid fallbacks**: Must use only the first and best option for any analysis. If not available or if it fails, the script should stop immediately.
+
+####################
+## Commit-ready analysis code and figure organization
+
+- Keep `analysis/` limited to important, maintained scientific workflows and indispensable shared helpers or setup dependencies intended for Git. Consolidate small plotting extensions into their main analysis when practical. Do not keep a separate persistent script for each repair or verification step.
+- One-off preflight checks, audits, reference replays, validation probes, PDF render checks, and audit-only package installers are temporary session tools. Run them inline or place them outside `analysis/` in a Git-ignored project-local scratch directory such as `Auto_session_checks/`. They must not become required production dependencies or appear as active pipeline steps in the analysis inventory. Keep useful validation results in the output `reports/` tier.
+- This rule takes precedence over older placement or naming guidance for temporary checks. A package installer is an essential tracked setup dependency only when the scientific workflow itself needs it; an audit-only renderer does not qualify. Never delete files without explicit user permission. If deletion is prohibited, retain temporary tools in the ignored session archive outside `analysis/`.
+- Organize figures by purpose: a small, explicitly selected `Auto_final/` set; `Auto_supporting/` for secondary evidence; `Auto_diagnostics/` for QC; and, when needed, `Auto_archive/` for retained duplicates or obsolete exports. Use clear descriptive filenames, order final figures numerically, and provide a compact figure index explaining each file's role. Do not present all generated PDFs as necessary final figures.
+- Avoid exporting both combined panels and duplicate standalone panels by default. Keep scientific source data and tests reproducible independently of temporary auditing tools. Before handoff, check that production scripts do not source temporary files and that the proposed Git changes contain no session-only tools.
+####################
+
+####################
+## Visualization readability for presentations and papers
+
+- Wherever possible and space allows, use generous, clearly readable font sizes for figures intended for PowerPoint presentations and inclusion in papers. Apply this to titles, axis titles, tick labels, legends, annotations, panel labels, and heatmap row/column labels.
+- Judge readability at the intended final display or printed size, including after a figure is placed on a slide or reduced to a manuscript column. A large export canvas alone does not guarantee readable text after scaling.
+- Use available space to enlarge text and improve spacing without overlapping or clipped labels and legends. Increasing font size must never cause a figure to be split across additional pages. Preserve the intended comparison on one page; for clinical associations, keep all MPs on one page per clinical variable, as in OCCAMS. Adjust layout, label rotation/wrapping, margins, canvas dimensions and font sizes within that page. Only split pages when the user explicitly requests it, not to accommodate larger text. Keep point sizes and line widths clear at the intended final size.
+- Choose font sizes appropriate to the output dimensions and intended use; follow journal requirements when supplied. Check the exported figure at its intended presentation or publication size before handoff.
+####################
+
+####################
+## Stable current-result directories
+
+- Each maintained analysis has one stable, descriptive output directory under the project's canonical output root. Put current files directly in `figures/`, `tables/`, `reports/`, `logs/`, and, when needed, `intermediate/` and `reference/`. Do not create empty tiers without a purpose.
+- Do not create timestamped `Auto_run_*` directories, numbered attempts, `v2`/`v3` result directories, or competing final/latest copies for routine reruns or plot repairs. Timestamps and job IDs belong in logs, not in the current result path.
+- Authorized reruns update the analysis's documented current outputs. Keep a single selected final figure set and one compact current-results index with working relative links. Do not overwrite unrelated files or bypass an explicit user restriction on modification.
+- Current reports describe the implemented method, results, validation and unresolved scientific limitations. Exclude obsolete run inventories, failed-attempt narratives, superseded job IDs and debugging chronology from the current results index and scientific reports.
+- When previous attempts must be retained, move them to an ignored project-local session archive outside the active analysis output directory, such as `Auto_session_checks/<analysis>/Auto_archive/`. Do not leave old run directories mixed with current results. Never delete files without explicit permission, and do not move files outside the project without authorization.
+- Keep indispensable source data and references in the current live output tiers. Current scripts, reports and downstream analyses must not depend on the session archive or temporary audit scripts.
+- When reorganizing outputs, update the producing script, registry, methodology, analysis map and links together. Verify current file paths and figure/table integrity before handoff. This rule governs new work and scoped cleanup; it does not authorize unrelated migrations.
+####################
 
 ####################
 ## Analysis job scripts and PBS logs
@@ -541,4 +572,22 @@ Do **not** apply this to every R script. Focus on scripts that synthesize data a
 - Inputs: final per-sample Parse Seurat objects, centred GeneNMF caches under `parse_outs/centred/Auto_parse_metaprograms/`, canonical state assignments, and existing uncentred high-resolution outputs for comparison.
 - Outputs: all centred method outputs live under `parse_outs/centred/`, including `Auto_parse_highres_metaprogram_trends/`, `Auto_parse_highres_metaprogram_trends/Auto_T2T4_gt_T0eR4_filter/`, `comparison/`, and `publication/` figure tiers.
 - The centred workflow runs `multiNMF(center = TRUE)`, derives high-resolution MPs at half the total NMF programme count from `T0`, `T1`, `T2`, `T4`, `R4`, and `eR4` (currently 234 / 2 = nMP117), runs the T2/T4-high filter from `parse_highres_mp_t2t4_comparison_filter.R`, annotates centred MPs with automatic top 3CA non-cell-cycle labels and best uncentred T2/T4-high MP gene-set matches, and compares centred versus uncentred retained MPs. It does not use the external PDO nMP156 object.
+####################
+
+####################
+## 2026-10-23 Candidate pEMT Association Figure
+
+- Active terminal script: `analysis/metaprograms/centred/parse_centred_candidate_pemt_validation.R`; methodology: `analysis/methodology/metaprograms/centred/candidate_pemt_validation_methodology.md`.
+- Input for plotting: `parse_outs/centred/candidate_pemt_validation/intermediate/candidate_pemt_replot_bundle.rds`, retained in live storage.
+- Current outputs: `parse_outs/centred/candidate_pemt_validation/{figures,tables,reports}/`; Figure 04 is `figures/Auto_final/04_T4_candidate_high_vs_low.pdf`.
+- Figure 04 page 1 shows T4 high/low expression differences; page 2 shows continuous candidate–MP Spearman correlations, removing the tested gene from each MP score. The final column summarises median rho across the eight MPs.
+- `--mode=figure4` uses the persistent bundle to refresh the two-page PDF, PNG companions, association tables, report and index. No downstream consumers; matching ignored PBS launcher uses gnmf, 4 CPUs, 48 GB and four hours.
+####################
+
+####################
+## 2026-10-23 Candidate pEMT Per-Cell Scatter Support
+
+- The maintained candidate pEMT script also produces `parse_outs/centred/candidate_pemt_validation/figures/Auto_supporting/T4_candidate_per_cell_pemt_scatter.pdf`: 21 gene pages, eight MP panels per page, all 2,600 T4 cells in every panel.
+- Scores omit the tested candidate; panels show Spearman rho and descriptive MP-score-decile mean-expression trends. The live replot bundle is the sole plot input.
+- `--mode=scatter` refreshes this supporting collection, its page-index/bin-mean CSV tables, validation report and current-results links. No active downstream consumers.
 ####################
